@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { join } from 'node:path';
-import { createInterface } from 'node:readline/promises';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { createInterface, type Interface } from 'node:readline';
+import { stringify } from 'yaml';
 import { ApiClient } from './api/client.js';
 import { TokenStore } from './auth/tokenStore.js';
 import { runSync } from './commands/sync.js';
@@ -16,6 +18,7 @@ import { createPersonalTime, resolvePersonalTimeId } from './schedule/personalTi
 import { loadNotes, saveNotes } from './profile/notesStore.js';
 import { buildNoteReminder } from './schedule/noteReminder.js';
 import { buildNotesSummary } from './reporting/notesSummary.js';
+import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingRole, type OnboardingPurpose, type OnboardingStamina } from './onboarding/wizard.js';
 import type { BulkResult, Schedule, Session } from './api/types.js';
 
 const DEFAULT_EVENT_ID = 'reinvent2026';
@@ -27,14 +30,54 @@ function createClient(): ApiClient {
   return new ApiClient({ getAccessToken: () => tokenStore.load()?.accessToken });
 }
 
-async function askConfirmation(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const answer = await rl.question(`${question} [y/N] `);
-    return answer.trim().toLowerCase() === 'y';
-  } finally {
-    rl.close();
+// 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
+// パイプ入力（テスト・自動化実行）では readline が全行を同じティックで同期的に 'line' イベント
+// として発火するため、question() はおろか素朴な「1問ずつ待ち受け登録」も2問目以降を取りこぼす。
+// 届いた行を一旦キューに貯め、askLine側がそれを順番に取り出す方式にして取りこぼしを防ぐ。
+let sharedPrompter: Interface | undefined;
+const lineQueue: string[] = [];
+const waitingResolvers: ((line: string) => void)[] = [];
+
+function getPrompter(): Interface {
+  if (!sharedPrompter) {
+    sharedPrompter = createInterface({ input: process.stdin, output: process.stdout });
+    sharedPrompter.on('line', (line) => {
+      const resolve = waitingResolvers.shift();
+      if (resolve) resolve(line);
+      else lineQueue.push(line);
+    });
   }
+  return sharedPrompter;
+}
+
+function closePrompter(): void {
+  sharedPrompter?.close();
+  sharedPrompter = undefined;
+  lineQueue.length = 0;
+  waitingResolvers.length = 0;
+}
+
+function askLine(prompt: string): Promise<string> {
+  getPrompter();
+  process.stdout.write(prompt);
+  const queued = lineQueue.shift();
+  if (queued !== undefined) return Promise.resolve(queued);
+  return new Promise((resolve) => {
+    waitingResolvers.push(resolve);
+  });
+}
+
+async function askConfirmation(question: string): Promise<boolean> {
+  const answer = await askLine(`${question} [y/N] `);
+  return answer.trim().toLowerCase() === 'y';
+}
+
+async function askChoice<T extends string>(question: string, choices: { value: T; label: string }[]): Promise<T> {
+  console.log(question);
+  choices.forEach((c, i) => console.log(`  ${i + 1}. ${c.label}`));
+  const answer = await askLine('番号を選んでください: ');
+  const index = Number(answer.trim()) - 1;
+  return choices[index]?.value ?? choices[0].value;
 }
 
 function printBulkResult(label: string, result: BulkResult): void {
@@ -48,6 +91,46 @@ program
   .name('night-shift')
   .description('re:Invent の予定を夜のうちに整えるローカルエージェント')
   .version('0.1.0');
+
+program
+  .command('init')
+  .description('初めての参加者向けの対話セットアップ。YAMLを直接書かずに初期プロフィール・意図を作る（企画書 §5.1）')
+  .action(async () => {
+    try {
+      const role = await askChoice<OnboardingRole>('普段の仕事は？', [
+        { value: 'infrastructure', label: 'インフラ' },
+        { value: 'appDev', label: 'アプリ開発' },
+        { value: 'data', label: 'データ' },
+        { value: 'management', label: '管理職' },
+      ]);
+      const purpose = await askChoice<OnboardingPurpose>('今回の一番の目的は？', [
+        { value: 'learning', label: '学習' },
+        { value: 'research', label: '情報収集' },
+        { value: 'networking', label: '人脈' },
+        { value: 'report', label: '社内報告' },
+      ]);
+      const stamina = await askChoice<OnboardingStamina>('体力に自信は？', [
+        { value: 'packed', label: '詰め込みたい' },
+        { value: 'normal', label: '普通' },
+        { value: 'relaxed', label: '余裕を持ちたい' },
+      ]);
+
+      const answers = { role, purpose, stamina };
+      const profile = buildProfileFromOnboarding(answers);
+      const intent = buildIntentFromOnboarding(answers);
+
+      mkdirSync(DATA_DIR, { recursive: true });
+      writeFileSync(join(DATA_DIR, 'profile.yaml'), stringify(profile), 'utf-8');
+      writeFileSync(join(DATA_DIR, 'intent.txt'), intent, 'utf-8');
+
+      console.log('\n保存しました:');
+      console.log(`  ${join(DATA_DIR, 'profile.yaml')}`);
+      console.log(`  ${join(DATA_DIR, 'intent.txt')}`);
+      console.log(`\n意図: ${intent}`);
+    } finally {
+      closePrompter();
+    }
+  });
 
 program
   .command('sync')
@@ -79,41 +162,45 @@ program
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (desiredStateFile: string, options: { eventId: string; yes: boolean }) => {
-    const client = createClient();
-    const desired = loadDesiredState(desiredStateFile);
-    const before = await runScheduleStatus(client, options.eventId);
-    const plan = reconcile(desired, before);
+    try {
+      const client = createClient();
+      const desired = loadDesiredState(desiredStateFile);
+      const before = await runScheduleStatus(client, options.eventId);
+      const plan = reconcile(desired, before);
 
-    const hasChanges = [plan.toReserve, plan.toCancelReservation, plan.toFavorite, plan.toUnfavorite].some((l) => l.length > 0);
-    if (!hasChanges) {
-      console.log('現在の状態は意図と一致しています。');
-      return;
+      const hasChanges = [plan.toReserve, plan.toCancelReservation, plan.toFavorite, plan.toUnfavorite].some((l) => l.length > 0);
+      if (!hasChanges) {
+        console.log('現在の状態は意図と一致しています。');
+        return;
+      }
+
+      console.log('これから行う操作：');
+      for (const id of plan.toReserve) console.log(`  予約する    ${id}`);
+      for (const id of plan.toCancelReservation) console.log(`  予約を外す  ${id}`);
+      for (const id of plan.toFavorite) console.log(`  お気に入り  ${id}`);
+      for (const id of plan.toUnfavorite) console.log(`  お気に入り解除  ${id}`);
+
+      if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+        console.log('キャンセルしました。');
+        return;
+      }
+
+      const result = await executeReconcilePlan(client, options.eventId, plan);
+      printBulkResult('予約', result.reserve);
+      printBulkResult('お気に入り', result.favorite);
+      for (const c of result.cancelReservation) console.log(`予約解除 ${c.sessionId}: ${c.status}`);
+      for (const u of result.unfavorite) console.log(`お気に入り解除 ${u.sessionId}: ${u.status}`);
+
+      // 企画書 §5.9: 実行後に必ずGetScheduleで実際の状態を取り直し、意図と突き合わせる
+      const after: Schedule = await runScheduleStatus(client, options.eventId);
+      const remaining = reconcile(desired, after);
+      const stillHasChanges = [remaining.toReserve, remaining.toCancelReservation, remaining.toFavorite, remaining.toUnfavorite].some((l) => l.length > 0);
+      console.log(stillHasChanges
+        ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
+        : '現在の状態は意図と一致しています。');
+    } finally {
+      closePrompter();
     }
-
-    console.log('これから行う操作：');
-    for (const id of plan.toReserve) console.log(`  予約する    ${id}`);
-    for (const id of plan.toCancelReservation) console.log(`  予約を外す  ${id}`);
-    for (const id of plan.toFavorite) console.log(`  お気に入り  ${id}`);
-    for (const id of plan.toUnfavorite) console.log(`  お気に入り解除  ${id}`);
-
-    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
-      console.log('キャンセルしました。');
-      return;
-    }
-
-    const result = await executeReconcilePlan(client, options.eventId, plan);
-    printBulkResult('予約', result.reserve);
-    printBulkResult('お気に入り', result.favorite);
-    for (const c of result.cancelReservation) console.log(`予約解除 ${c.sessionId}: ${c.status}`);
-    for (const u of result.unfavorite) console.log(`お気に入り解除 ${u.sessionId}: ${u.status}`);
-
-    // 企画書 §5.9: 実行後に必ずGetScheduleで実際の状態を取り直し、意図と突き合わせる
-    const after: Schedule = await runScheduleStatus(client, options.eventId);
-    const remaining = reconcile(desired, after);
-    const stillHasChanges = [remaining.toReserve, remaining.toCancelReservation, remaining.toFavorite, remaining.toUnfavorite].some((l) => l.length > 0);
-    console.log(stillHasChanges
-      ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
-      : '現在の状態は意図と一致しています。');
   });
 
 program
@@ -122,50 +209,54 @@ program
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (options: { eventId: string; yes: boolean }) => {
-    const client = createClient();
-    const schedule = await runScheduleStatus(client, options.eventId);
-    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
-    const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+    try {
+      const client = createClient();
+      const schedule = await runScheduleStatus(client, options.eventId);
+      const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+      const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
 
-    const reservedSessions = schedule.reserved
-      .map((id) => snapshotById.get(id))
-      .filter((s): s is Session => Boolean(s));
-    const missingIds = schedule.reserved.filter((id) => !snapshotById.has(id));
-    if (missingIds.length > 0) {
-      console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${missingIds.join(', ')}`);
-    }
-
-    const blocks = planTravelBlocks(reservedSessions);
-    for (const blk of blocks) {
-      if (!blk.result.sufficient) {
-        console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
+      const reservedSessions = schedule.reserved
+        .map((id) => snapshotById.get(id))
+        .filter((s): s is Session => Boolean(s));
+      const missingIds = schedule.reserved.filter((id) => !snapshotById.has(id));
+      if (missingIds.length > 0) {
+        console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${missingIds.join(', ')}`);
       }
-    }
 
-    const candidates = blocks
-      .filter((blk) => blk.result.sufficient && blk.result.personalTime)
-      .filter((blk) => !resolvePersonalTimeId(schedule, blk.result.personalTime!));
+      const blocks = planTravelBlocks(reservedSessions);
+      for (const blk of blocks) {
+        if (!blk.result.sufficient) {
+          console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
+        }
+      }
 
-    if (candidates.length === 0) {
-      console.log('新規に確保すべき移動時間はありません。');
-      return;
-    }
+      const candidates = blocks
+        .filter((blk) => blk.result.sufficient && blk.result.personalTime)
+        .filter((blk) => !resolvePersonalTimeId(schedule, blk.result.personalTime!));
 
-    console.log('これから確保する移動時間：');
-    for (const blk of candidates) {
-      const pt = blk.result.personalTime!;
-      console.log(`  ${pt.startDateTime} - ${pt.endDateTime}  ${pt.title}`);
-    }
+      if (candidates.length === 0) {
+        console.log('新規に確保すべき移動時間はありません。');
+        return;
+      }
 
-    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
-      console.log('キャンセルしました。');
-      return;
-    }
+      console.log('これから確保する移動時間：');
+      for (const blk of candidates) {
+        const pt = blk.result.personalTime!;
+        console.log(`  ${pt.startDateTime} - ${pt.endDateTime}  ${pt.title}`);
+      }
 
-    for (const blk of candidates) {
-      await createPersonalTime(client, options.eventId, blk.result.personalTime!);
+      if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+        console.log('キャンセルしました。');
+        return;
+      }
+
+      for (const blk of candidates) {
+        await createPersonalTime(client, options.eventId, blk.result.personalTime!);
+      }
+      console.log(`${candidates.length}件の移動時間を確保しました。`);
+    } finally {
+      closePrompter();
     }
-    console.log(`${candidates.length}件の移動時間を確保しました。`);
   });
 
 const notes = program.command('notes').description('セッションへのメモ（企画書 §5.7）');
@@ -207,37 +298,41 @@ notes
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (options: { eventId: string; yes: boolean }) => {
-    const client = createClient();
-    const allNotes = loadNotes(NOTES_PATH);
-    const schedule = await runScheduleStatus(client, options.eventId);
-    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
-    const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+    try {
+      const client = createClient();
+      const allNotes = loadNotes(NOTES_PATH);
+      const schedule = await runScheduleStatus(client, options.eventId);
+      const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+      const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
 
-    const reminders = Object.entries(allNotes)
-      .map(([sessionId, text]) => {
-        const session = snapshotById.get(sessionId);
-        if (!session) return undefined;
-        const personalTime = buildNoteReminder(session, text);
-        return personalTime ? { sessionId, personalTime } : undefined;
-      })
-      .filter((r): r is { sessionId: string; personalTime: NonNullable<ReturnType<typeof buildNoteReminder>> } => Boolean(r))
-      .filter((r) => !resolvePersonalTimeId(schedule, r.personalTime));
+      const reminders = Object.entries(allNotes)
+        .map(([sessionId, text]) => {
+          const session = snapshotById.get(sessionId);
+          if (!session) return undefined;
+          const personalTime = buildNoteReminder(session, text);
+          return personalTime ? { sessionId, personalTime } : undefined;
+        })
+        .filter((r): r is { sessionId: string; personalTime: NonNullable<ReturnType<typeof buildNoteReminder>> } => Boolean(r))
+        .filter((r) => !resolvePersonalTimeId(schedule, r.personalTime));
 
-    if (reminders.length === 0) {
-      console.log('新規に確保すべきメモのリマインダーはありません。');
-      return;
+      if (reminders.length === 0) {
+        console.log('新規に確保すべきメモのリマインダーはありません。');
+        return;
+      }
+
+      console.log('これから確保するリマインダー：');
+      for (const r of reminders) console.log(`  ${r.personalTime.startDateTime} - ${r.personalTime.endDateTime}  ${r.personalTime.title}`);
+
+      if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+        console.log('キャンセルしました。');
+        return;
+      }
+
+      for (const r of reminders) await createPersonalTime(client, options.eventId, r.personalTime);
+      console.log(`${reminders.length}件のリマインダーを確保しました。`);
+    } finally {
+      closePrompter();
     }
-
-    console.log('これから確保するリマインダー：');
-    for (const r of reminders) console.log(`  ${r.personalTime.startDateTime} - ${r.personalTime.endDateTime}  ${r.personalTime.title}`);
-
-    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
-      console.log('キャンセルしました。');
-      return;
-    }
-
-    for (const r of reminders) await createPersonalTime(client, options.eventId, r.personalTime);
-    console.log(`${reminders.length}件のリマインダーを確保しました。`);
   });
 
 const auth = program.command('auth').description('Builder ID サインインの状態管理');
