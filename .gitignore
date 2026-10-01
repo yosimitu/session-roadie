@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/*.json
+data/profile.yaml
+data/intent.yaml
+data/notes.yaml
+!data/profile.example.yaml
+.night-shift/
