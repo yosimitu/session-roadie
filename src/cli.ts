@@ -12,11 +12,10 @@ import { runScheduleStatus } from './commands/scheduleStatus.js';
 import { loadDesiredState } from './schedule/desiredStateStore.js';
 import { reconcile } from './schedule/reconcile.js';
 import { executeReconcilePlan } from './commands/applyPlan.js';
-import { planTravelBlocks } from './commands/travelBlocks.js';
+import { buildTravelBlockPlan, applyTravelBlocks } from './commands/travelBlocks.js';
 import { loadSnapshot } from './catalog/store.js';
-import { createPersonalTime, resolvePersonalTimeId } from './schedule/personalTime.js';
 import { loadNotes, saveNotes } from './profile/notesStore.js';
-import { buildNoteReminder } from './schedule/noteReminder.js';
+import { buildNoteReminderPlan, applyNoteReminders } from './commands/noteReminders.js';
 import { buildNotesSummary } from './reporting/notesSummary.js';
 import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingRole, type OnboardingPurpose, type OnboardingStamina } from './onboarding/wizard.js';
 import { findConflicts } from './commands/conflicts.js';
@@ -207,34 +206,22 @@ program
       const client = await createClient();
       const schedule = await runScheduleStatus(client, options.eventId);
       const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
-      const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+      const plan = buildTravelBlockPlan(schedule, snapshot);
 
-      const reservedSessions = schedule.reserved
-        .map((id) => snapshotById.get(id))
-        .filter((s): s is Session => Boolean(s));
-      const missingIds = schedule.reserved.filter((id) => !snapshotById.has(id));
-      if (missingIds.length > 0) {
-        console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${missingIds.join(', ')}`);
+      if (plan.missingSessionIds.length > 0) {
+        console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${plan.missingSessionIds.join(', ')}`);
+      }
+      for (const blk of plan.insufficientBlocks) {
+        console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
       }
 
-      const blocks = planTravelBlocks(reservedSessions);
-      for (const blk of blocks) {
-        if (!blk.result.sufficient) {
-          console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
-        }
-      }
-
-      const candidates = blocks
-        .filter((blk) => blk.result.sufficient && blk.result.personalTime)
-        .filter((blk) => !resolvePersonalTimeId(schedule, blk.result.personalTime!));
-
-      if (candidates.length === 0) {
+      if (plan.candidates.length === 0) {
         console.log('新規に確保すべき移動時間はありません。');
         return;
       }
 
       console.log('これから確保する移動時間：');
-      for (const blk of candidates) {
+      for (const blk of plan.candidates) {
         const pt = blk.result.personalTime!;
         console.log(`  ${pt.startDateTime} - ${pt.endDateTime}  ${pt.title}`);
       }
@@ -244,10 +231,8 @@ program
         return;
       }
 
-      for (const blk of candidates) {
-        await createPersonalTime(client, options.eventId, blk.result.personalTime!);
-      }
-      console.log(`${candidates.length}件の移動時間を確保しました。`);
+      const count = await applyTravelBlocks(client, options.eventId, plan.candidates);
+      console.log(`${count}件の移動時間を確保しました。`);
     } finally {
       closePrompter();
     }
@@ -325,17 +310,7 @@ notes
       const allNotes = loadNotes(NOTES_PATH);
       const schedule = await runScheduleStatus(client, options.eventId);
       const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
-      const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
-
-      const reminders = Object.entries(allNotes)
-        .map(([sessionId, text]) => {
-          const session = snapshotById.get(sessionId);
-          if (!session) return undefined;
-          const personalTime = buildNoteReminder(session, text);
-          return personalTime ? { sessionId, personalTime } : undefined;
-        })
-        .filter((r): r is { sessionId: string; personalTime: NonNullable<ReturnType<typeof buildNoteReminder>> } => Boolean(r))
-        .filter((r) => !resolvePersonalTimeId(schedule, r.personalTime));
+      const reminders = buildNoteReminderPlan(allNotes, snapshot, schedule);
 
       if (reminders.length === 0) {
         console.log('新規に確保すべきメモのリマインダーはありません。');
@@ -350,8 +325,8 @@ notes
         return;
       }
 
-      for (const r of reminders) await createPersonalTime(client, options.eventId, r.personalTime);
-      console.log(`${reminders.length}件のリマインダーを確保しました。`);
+      const count = await applyNoteReminders(client, options.eventId, reminders);
+      console.log(`${count}件のリマインダーを確保しました。`);
     } finally {
       closePrompter();
     }
