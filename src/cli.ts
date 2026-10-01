@@ -21,6 +21,7 @@ import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingR
 import { findConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, getTokenStore, createClient } from './runtimeContext.js';
+import { startMcpServer } from './mcp/server.js';
 import type { BulkResult, Schedule, Session } from './api/types.js';
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
@@ -360,6 +361,13 @@ auth
   .action(async () => {
     await signOut(getTokenStore());
     console.log('サインアウトしました。');
+  });
+
+program
+  .command('mcp')
+  .description('MCPサーバーとして起動する（stdio）。Claude Desktop等のMCPクライアントから利用する')
+  .action(async () => {
+    await startMcpServer();
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
