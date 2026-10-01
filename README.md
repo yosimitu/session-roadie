@@ -66,10 +66,10 @@ node dist/cli.js auth login
 
 ## 現状の制約
 
-- **Builder ID のサインインフローは実装済みですが、実アカウントでの動作は未確認**です（[src/auth/signIn.ts](src/auth/signIn.ts)）。エンドポイントは公式ドキュメント（`docs.aws.amazon.com/events/latest/devguide/auth-endpoints.html`）に基づいていますが、実機での `auth login` 実行による確認はまだ行っていません。
 - **`ReserveSessions`/`CancelReservation` は未検証**です。2026-10-08の予約API開放前のため、モックテストのみで実レスポンスでの確認ができていません。
 - **会場間の移動時間テーブル（[src/schedule/travelTime.ts](src/schedule/travelTime.ts)）は実測値ではありません**。企画書の「20〜40分」という大まかな記述を根拠にした仮の概算値です。
-- **PersonalTimeの日時はPST固定（UTC-8）で計算**しています。re:Invent会期（2026年12月上旬）はサマータイムの影響を受けない前提です。
+- **PersonalTimeの日時はPST固定（UTC-8）で計算**しています。`GetEvent`の実データ（`startDate`/`endDate`のISO8601オフセット）で裏付け済みです。
+- **`CreatePersonalTime`で書き込んだ内容が公式アプリ（スマートフォン）のカレンダーに反映されるまで、数分〜十数分のラグがあります**（2026-10-01実機確認）。サーバー側のデータ（`GetSchedule`で取得できる内容）は即座に正しく更新されますが、アプリのクライアント側キャッシュへの反映はすぐではありません。「予定が自動で直る」デモを撮る際はこの遅延を考慮してください。
 
 ## テスト
 
