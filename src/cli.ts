@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface, type Interface } from 'node:readline';
 import { stringify } from 'yaml';
-import { ApiClient } from './api/client.js';
+import { ApiClient, ApiError } from './api/client.js';
 import { TokenStore } from './auth/tokenStore.js';
 import { runSync } from './commands/sync.js';
 import { runAuthStatus } from './commands/authStatus.js';
@@ -19,6 +19,8 @@ import { loadNotes, saveNotes } from './profile/notesStore.js';
 import { buildNoteReminder } from './schedule/noteReminder.js';
 import { buildNotesSummary } from './reporting/notesSummary.js';
 import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingRole, type OnboardingPurpose, type OnboardingStamina } from './onboarding/wizard.js';
+import { findConflicts } from './commands/conflicts.js';
+import { recommendForConflict } from './planning/alternatives.js';
 import type { BulkResult, Schedule, Session } from './api/types.js';
 
 const DEFAULT_EVENT_ID = 'reinvent2026';
@@ -259,6 +261,34 @@ program
     }
   });
 
+program
+  .command('conflicts')
+  .description('予約済みセッションの時間重複を検出し、諦める判断材料（再演・類似セッション）を根拠つきで表示する（企画書 §5.4）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .action(async (options: { eventId: string }) => {
+    const client = createClient();
+    const schedule = await runScheduleStatus(client, options.eventId);
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+    const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+    const reservedSessions = schedule.reserved
+      .map((id) => snapshotById.get(id))
+      .filter((s): s is Session => Boolean(s));
+
+    const groups = findConflicts(reservedSessions);
+    if (groups.length === 0) {
+      console.log('時間が重複している予約はありません。');
+      return;
+    }
+
+    for (const group of groups) {
+      const { recommended, reasons } = recommendForConflict(group, snapshot);
+      console.log(`${group.map((s) => s.sessionId).join(', ')} が競合しています。`);
+      console.log(`推奨: ${recommended.sessionId} に参加`);
+      for (const s of group) console.log(`  ${s.sessionId} → ${reasons[s.sessionId]}`);
+      console.log('');
+    }
+  });
+
 const notes = program.command('notes').description('セッションへのメモ（企画書 §5.7）');
 notes
   .command('list')
@@ -349,4 +379,14 @@ auth
     }
   });
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  if (err instanceof ApiError) {
+    console.error(`APIエラー（HTTP ${err.status}）: ${JSON.stringify(err.body)}`);
+  } else if (err instanceof Error) {
+    console.error(`エラー: ${err.message}`);
+  } else {
+    console.error('不明なエラーが発生しました:', err);
+  }
+  closePrompter();
+  process.exitCode = 1;
+});
