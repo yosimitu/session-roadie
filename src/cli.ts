@@ -6,6 +6,7 @@ import { createInterface, type Interface } from 'node:readline';
 import { stringify } from 'yaml';
 import { ApiClient, ApiError } from './api/client.js';
 import { TokenStore } from './auth/tokenStore.js';
+import { signIn, signOut, ensureAccessToken } from './auth/signIn.js';
 import { runSync } from './commands/sync.js';
 import { runAuthStatus } from './commands/authStatus.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
@@ -27,9 +28,17 @@ const DEFAULT_EVENT_ID = 'reinvent2026';
 const DATA_DIR = join(process.cwd(), 'data');
 const NOTES_PATH = join(DATA_DIR, 'notes.yaml');
 
-function createClient(): ApiClient {
-  const tokenStore = new TokenStore(join(DATA_DIR, 'token.json'));
-  return new ApiClient({ getAccessToken: () => tokenStore.load()?.accessToken });
+function getTokenStore(): TokenStore {
+  return new TokenStore(join(DATA_DIR, 'token.json'));
+}
+
+// 401対策（企画書 §5.9と同じ「必ず最新状態を取り直す」思想）として、呼び出し前に一度だけ
+// ensureAccessTokenでリフレッシュを試みる。ApiClientのgetAccessTokenは同期関数のため、
+// 取得した値をクロージャで固定して渡す。
+async function createClient(): Promise<ApiClient> {
+  const tokenStore = getTokenStore();
+  const accessToken = await ensureAccessToken(tokenStore);
+  return new ApiClient({ getAccessToken: () => accessToken });
 }
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
@@ -139,7 +148,7 @@ program
   .description('カタログ全件を取得し、前回のローカルスナップショットとの差分を表示する')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .action(async (options: { eventId: string }) => {
-    const diff = await runSync(createClient(), options.eventId, DATA_DIR);
+    const diff = await runSync(await createClient(), options.eventId, DATA_DIR);
     console.log(`新規: ${diff.added.length}件 / 変更: ${diff.changed.length}件 / キャンセル: ${diff.removed.length}件`);
     for (const s of diff.added) console.log(`  + ${s.sessionId} ${s.title}`);
     for (const c of diff.changed) console.log(`  * ${c.sessionId} ${c.after.title} (${c.changedFields.join(', ')})`);
@@ -151,7 +160,7 @@ program
   .description('現在のスケジュール（予約・お気に入り・個人予定）を表示する')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .action(async (options: { eventId: string }) => {
-    const schedule = await runScheduleStatus(createClient(), options.eventId);
+    const schedule = await runScheduleStatus(await createClient(), options.eventId);
     console.log(`予約: ${schedule.reserved.length}件 / お気に入り: ${schedule.favorites.length}件 / 個人予定: ${schedule.personalTime.length}件`);
     for (const id of schedule.reserved) console.log(`  予約: ${id}`);
     for (const id of schedule.favorites) console.log(`  お気に入り: ${id}`);
@@ -165,7 +174,7 @@ program
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (desiredStateFile: string, options: { eventId: string; yes: boolean }) => {
     try {
-      const client = createClient();
+      const client = await createClient();
       const desired = loadDesiredState(desiredStateFile);
       const before = await runScheduleStatus(client, options.eventId);
       const plan = reconcile(desired, before);
@@ -212,7 +221,7 @@ program
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (options: { eventId: string; yes: boolean }) => {
     try {
-      const client = createClient();
+      const client = await createClient();
       const schedule = await runScheduleStatus(client, options.eventId);
       const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
       const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
@@ -266,7 +275,7 @@ program
   .description('予約済みセッションの時間重複を検出し、諦める判断材料（再演・類似セッション）を根拠つきで表示する（企画書 §5.4）')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .action(async (options: { eventId: string }) => {
-    const client = createClient();
+    const client = await createClient();
     const schedule = await runScheduleStatus(client, options.eventId);
     const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
     const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
@@ -329,7 +338,7 @@ notes
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (options: { eventId: string; yes: boolean }) => {
     try {
-      const client = createClient();
+      const client = await createClient();
       const allNotes = loadNotes(NOTES_PATH);
       const schedule = await runScheduleStatus(client, options.eventId);
       const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
@@ -370,13 +379,29 @@ auth
   .command('status')
   .description('サインイン状態を表示する')
   .action(() => {
-    const tokenStore = new TokenStore(join(DATA_DIR, 'token.json'));
-    const status = runAuthStatus(tokenStore);
+    const status = runAuthStatus(getTokenStore());
     if (status.signedIn) {
       console.log(`サインイン済み（有効期限: ${new Date(status.expiresAt!).toISOString()}）`);
     } else {
       console.log('未サインイン');
     }
+  });
+
+auth
+  .command('login')
+  .description('ブラウザでBuilder IDにサインインする')
+  .action(async () => {
+    console.log('ブラウザを開きます。Builder IDでサインインしてください…');
+    const token = await signIn(getTokenStore());
+    console.log(`サインインしました（有効期限: ${new Date(token.expiresAt).toISOString()}）`);
+  });
+
+auth
+  .command('logout')
+  .description('サインアウトする（refresh tokenを失効させ、ローカルのトークンを削除し、Builder IDのブラウザセッションも終了する）')
+  .action(async () => {
+    await signOut(getTokenStore());
+    console.log('サインアウトしました。');
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
