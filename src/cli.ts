@@ -13,10 +13,14 @@ import { executeReconcilePlan } from './commands/applyPlan.js';
 import { planTravelBlocks } from './commands/travelBlocks.js';
 import { loadSnapshot } from './catalog/store.js';
 import { createPersonalTime, resolvePersonalTimeId } from './schedule/personalTime.js';
+import { loadNotes, saveNotes } from './profile/notesStore.js';
+import { buildNoteReminder } from './schedule/noteReminder.js';
+import { buildNotesSummary } from './reporting/notesSummary.js';
 import type { BulkResult, Schedule, Session } from './api/types.js';
 
 const DEFAULT_EVENT_ID = 'reinvent2026';
 const DATA_DIR = join(process.cwd(), 'data');
+const NOTES_PATH = join(DATA_DIR, 'notes.yaml');
 
 function createClient(): ApiClient {
   const tokenStore = new TokenStore(join(DATA_DIR, 'token.json'));
@@ -162,6 +166,78 @@ program
       await createPersonalTime(client, options.eventId, blk.result.personalTime!);
     }
     console.log(`${candidates.length}件の移動時間を確保しました。`);
+  });
+
+const notes = program.command('notes').description('セッションへのメモ（企画書 §5.7）');
+notes
+  .command('list')
+  .description('保存済みのメモを一覧表示する')
+  .action(() => {
+    const all = loadNotes(NOTES_PATH);
+    const entries = Object.entries(all);
+    if (entries.length === 0) {
+      console.log('メモはありません。');
+      return;
+    }
+    for (const [sessionId, text] of entries) console.log(`${sessionId}: ${text}`);
+  });
+
+notes
+  .command('add <sessionId> <text>')
+  .description('セッションにメモを追加する（既存のメモは上書きする）')
+  .action((sessionId: string, text: string) => {
+    const all = loadNotes(NOTES_PATH);
+    saveNotes(NOTES_PATH, { ...all, [sessionId]: text });
+    console.log(`メモを保存しました: ${sessionId}`);
+  });
+
+notes
+  .command('report')
+  .description('メモをテーマ別に整理した帰国後報告を出力する')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .action((options: { eventId: string }) => {
+    const all = loadNotes(NOTES_PATH);
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+    console.log(buildNotesSummary(all, snapshot));
+  });
+
+notes
+  .command('apply')
+  .description('メモがあるセッションの直前にリマインダーをCreatePersonalTimeで確保する')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-y, --yes', '確認プロンプトをスキップする', false)
+  .action(async (options: { eventId: string; yes: boolean }) => {
+    const client = createClient();
+    const allNotes = loadNotes(NOTES_PATH);
+    const schedule = await runScheduleStatus(client, options.eventId);
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+    const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+
+    const reminders = Object.entries(allNotes)
+      .map(([sessionId, text]) => {
+        const session = snapshotById.get(sessionId);
+        if (!session) return undefined;
+        const personalTime = buildNoteReminder(session, text);
+        return personalTime ? { sessionId, personalTime } : undefined;
+      })
+      .filter((r): r is { sessionId: string; personalTime: NonNullable<ReturnType<typeof buildNoteReminder>> } => Boolean(r))
+      .filter((r) => !resolvePersonalTimeId(schedule, r.personalTime));
+
+    if (reminders.length === 0) {
+      console.log('新規に確保すべきメモのリマインダーはありません。');
+      return;
+    }
+
+    console.log('これから確保するリマインダー：');
+    for (const r of reminders) console.log(`  ${r.personalTime.startDateTime} - ${r.personalTime.endDateTime}  ${r.personalTime.title}`);
+
+    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+      console.log('キャンセルしました。');
+      return;
+    }
+
+    for (const r of reminders) await createPersonalTime(client, options.eventId, r.personalTime);
+    console.log(`${reminders.length}件のリマインダーを確保しました。`);
   });
 
 const auth = program.command('auth').description('Builder ID サインインの状態管理');

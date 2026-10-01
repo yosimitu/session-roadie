@@ -1,5 +1,6 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { parse } from 'yaml';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { parse, stringify } from 'yaml';
 
 export type NotesBySessionId = Record<string, string>;
 
@@ -11,4 +12,9 @@ export function loadNotes(path: string): NotesBySessionId {
   } catch {
     return {};
   }
+}
+
+export function saveNotes(path: string, notes: NotesBySessionId): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, stringify(notes), 'utf-8');
 }
