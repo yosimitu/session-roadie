@@ -1,9 +1,9 @@
 {
-  "name": "night-shift",
+  "name": "session-roadie",
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "bin": { "night-shift": "./dist/cli.js" },
+  "bin": { "re-roadie": "./dist/cli.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

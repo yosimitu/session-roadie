@@ -1,6 +1,6 @@
-# Night Shift
+# Session Roadie（愛称: re:Roadie）
 
-**夜の間に、明日の予定を整えておくエージェント。あなたは公式アプリを開くだけでいい。**
+**会場の裏方として、あなたの代わりに公式アプリを整え続けるエージェント。あなたは公式アプリを開くだけでいい。**
 
 re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) でセッションの計画・予約・移動時間確保・変更追従を行い、結果を**公式アプリの個人スケジュールに書き戻す**ローカルCLIエージェントです。
 
@@ -41,15 +41,17 @@ node dist/cli.js auth login
 
 | コマンド | 内容 |
 | --- | --- |
-| `night-shift sync` | カタログを全件取得し、前回のローカルスナップショットとの差分（新規・変更・キャンセル）を表示する |
-| `night-shift schedule` | 現在のスケジュール（予約・お気に入り・個人予定）を表示する |
-| `night-shift apply <desiredStateFile>` | あるべき状態（予約・お気に入りにしたいセッションID）を実スケジュールと突き合わせ、差分だけ実行する。実行前に操作内容を表示して確認を取り、実行後は必ず `GetSchedule` で再照合する |
-| `night-shift conflicts` | 予約済みセッションの時間重複を検出し、再演・類似セッションの有無という事実ベースの根拠つきで「諦めてよいもの」を提案する |
-| `night-shift travel-blocks` | 予約済みセッション間の移動時間を計算し、間に合わない場合は警告、間に合う場合は `CreatePersonalTime` で移動時間を公式スケジュールに書き込む |
-| `night-shift notes add/list/report/apply` | セッションへのメモの記録・一覧・テーマ別の帰国後報告・当日リマインダーの書き込み |
-| `night-shift auth login` | ブラウザでBuilder IDにサインインする |
-| `night-shift auth status` | サインイン状態を表示する |
-| `night-shift auth logout` | サインアウトする（refresh tokenを失効させ、ローカルのトークンを削除し、Builder IDのブラウザセッションも終了する） |
+| `re-roadie sync` | カタログを全件取得し、前回のローカルスナップショットとの差分（新規・変更・キャンセル）を表示する |
+| `re-roadie schedule` | 現在のスケジュール（予約・お気に入り・個人予定）を表示する |
+| `re-roadie apply <desiredStateFile>` | あるべき状態（予約・お気に入りにしたいセッションID）を実スケジュールと突き合わせ、差分だけ実行する。実行前に操作内容を表示して確認を取り、実行後は必ず `GetSchedule` で再照合する |
+| `re-roadie conflicts` | 予約済みセッションの時間重複を検出し、再演・類似セッションの有無という事実ベースの根拠つきで「諦めてよいもの」を提案する |
+| `re-roadie travel-blocks` | 予約済みセッション間の移動時間を計算し、間に合わない場合は警告、間に合う場合は `CreatePersonalTime` で移動時間を公式スケジュールに書き込む |
+| `re-roadie notes add/list/report/apply` | セッションへのメモの記録・一覧・テーマ別の帰国後報告・当日リマインダーの書き込み |
+| `re-roadie auth login` | ブラウザでBuilder IDにサインインする |
+| `re-roadie auth status` | サインイン状態を表示する |
+| `re-roadie auth logout` | サインアウトする（refresh tokenを失効させ、ローカルのトークンを削除し、Builder IDのブラウザセッションも終了する） |
+
+ビルド前に試す場合は `node dist/cli.js <サブコマンド>` のように読み替えてください。
 
 `apply`/`travel-blocks`/`notes apply` は実行前に確認プロンプトを出します。自動実行したい場合は `-y`/`--yes` を付けてください。
 
@@ -62,7 +64,7 @@ node dist/cli.js auth login
 }
 ```
 
-このファイルに何を入れるか（＝自由文の意図をどのセッションIDに変換するか）は、本ツールの外側（対話的なエージェントや利用者自身の判断）が担います。night-shift は「決まった、あるべき状態」を安全かつ冪等に実行する部分を受け持ちます。
+このファイルに何を入れるか（＝自由文の意図をどのセッションIDに変換するか）は、本ツールの外側（対話的なエージェントや利用者自身の判断）が担います。Session Roadie は「決まった、あるべき状態」を安全かつ冪等に実行する部分を受け持ちます。
 
 ## 現状の制約
 
@@ -90,7 +92,7 @@ src/
   reporting/  帰国後報告の生成
   onboarding/ 初参加者向け対話ウィザードのロジック
   commands/   CLIコマンドの実処理（テスト可能な純粋関数として分離）
-  cli.ts      commanderによるCLIエントリポイント
+  cli.ts      commanderによるCLIエントリポイント（実行コマンド名: `re-roadie`）
 ```
 
 ## まだ終えていないこと

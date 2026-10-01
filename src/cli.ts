@@ -99,8 +99,8 @@ function printBulkResult(label: string, result: BulkResult): void {
 
 const program = new Command();
 program
-  .name('night-shift')
-  .description('re:Invent の予定を夜のうちに整えるローカルエージェント')
+  .name('re-roadie')
+  .description('Session Roadie（愛称: re:Roadie） — re:Invent の予定を裏方として整え、公式アプリに書き戻すローカルエージェント')
   .version('0.1.0');
 
 program
