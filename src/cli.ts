@@ -10,7 +10,10 @@ import { runScheduleStatus } from './commands/scheduleStatus.js';
 import { loadDesiredState } from './schedule/desiredStateStore.js';
 import { reconcile } from './schedule/reconcile.js';
 import { executeReconcilePlan } from './commands/applyPlan.js';
-import type { BulkResult, Schedule } from './api/types.js';
+import { planTravelBlocks } from './commands/travelBlocks.js';
+import { loadSnapshot } from './catalog/store.js';
+import { createPersonalTime, resolvePersonalTimeId } from './schedule/personalTime.js';
+import type { BulkResult, Schedule, Session } from './api/types.js';
 
 const DEFAULT_EVENT_ID = 'reinvent2026';
 const DATA_DIR = join(process.cwd(), 'data');
@@ -107,6 +110,58 @@ program
     console.log(stillHasChanges
       ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
       : '現在の状態は意図と一致しています。');
+  });
+
+program
+  .command('travel-blocks')
+  .description('予約済みセッション間の移動時間をCreatePersonalTimeで確保する（企画書 §5.3）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-y, --yes', '確認プロンプトをスキップする', false)
+  .action(async (options: { eventId: string; yes: boolean }) => {
+    const client = createClient();
+    const schedule = await runScheduleStatus(client, options.eventId);
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR) ?? [];
+    const snapshotById = new Map(snapshot.map((s) => [s.sessionId, s]));
+
+    const reservedSessions = schedule.reserved
+      .map((id) => snapshotById.get(id))
+      .filter((s): s is Session => Boolean(s));
+    const missingIds = schedule.reserved.filter((id) => !snapshotById.has(id));
+    if (missingIds.length > 0) {
+      console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${missingIds.join(', ')}`);
+    }
+
+    const blocks = planTravelBlocks(reservedSessions);
+    for (const blk of blocks) {
+      if (!blk.result.sufficient) {
+        console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
+      }
+    }
+
+    const candidates = blocks
+      .filter((blk) => blk.result.sufficient && blk.result.personalTime)
+      .filter((blk) => !resolvePersonalTimeId(schedule, blk.result.personalTime!));
+
+    if (candidates.length === 0) {
+      console.log('新規に確保すべき移動時間はありません。');
+      return;
+    }
+
+    console.log('これから確保する移動時間：');
+    for (const blk of candidates) {
+      const pt = blk.result.personalTime!;
+      console.log(`  ${pt.startDateTime} - ${pt.endDateTime}  ${pt.title}`);
+    }
+
+    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+      console.log('キャンセルしました。');
+      return;
+    }
+
+    for (const blk of candidates) {
+      await createPersonalTime(client, options.eventId, blk.result.personalTime!);
+    }
+    console.log(`${candidates.length}件の移動時間を確保しました。`);
   });
 
 const auth = program.command('auth').description('Builder ID サインインの状態管理');
