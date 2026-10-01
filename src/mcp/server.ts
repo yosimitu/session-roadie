@@ -69,9 +69,9 @@ export function createServer(): McpServer {
   }, async () => safely(() => authLogoutTool()));
 
   server.registerTool('catalog_sync', {
-    description: 'カタログを全件取得し、前回のローカルスナップショットとの差分（新規・変更・キャンセル）を返す',
-    inputSchema: eventIdParam,
-  }, async ({ eventId }) => safely(() => catalogSyncTool(eventId)));
+    description: 'カタログを全件取得し、ローカルスナップショットとの差分（新規・変更・キャンセル）を返す。sinceに日付(YYYY-MM-DD)を指定すると、その日のスナップショットと比較する（例:「ここ一週間の新着」を知りたい場合は7日前の日付を指定。保存されている日付は結果のavailableDatesで分かる）。省略時は前回保存分と比較する',
+    inputSchema: { ...eventIdParam, since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('比較したい過去の日付(YYYY-MM-DD)') },
+  }, async ({ eventId, since }) => safely(() => catalogSyncTool(eventId, since)));
 
   server.registerTool('schedule_get', {
     description: '現在のスケジュール（予約・お気に入り・個人予定）を取得する',

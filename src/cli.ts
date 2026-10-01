@@ -6,7 +6,7 @@ import { createInterface, type Interface } from 'node:readline';
 import { stringify } from 'yaml';
 import { ApiError } from './api/client.js';
 import { signIn, signOut } from './auth/signIn.js';
-import { runSync } from './commands/sync.js';
+import { runSync, runSyncSince } from './commands/sync.js';
 import { runAuthStatus } from './commands/authStatus.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
 import { loadDesiredState } from './schedule/desiredStateStore.js';
@@ -130,8 +130,12 @@ program
   .command('sync')
   .description('カタログ全件を取得し、前回のローカルスナップショットとの差分を表示する')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
-  .action(async (options: { eventId: string }) => {
-    const diff = await runSync(await createClient(), options.eventId, DATA_DIR);
+  .option('--since <date>', '指定日(YYYY-MM-DD)のスナップショットと比較する（例: 1週間前の新着を確認）。省略時は前回保存分と比較')
+  .action(async (options: { eventId: string; since?: string }) => {
+    const client = await createClient();
+    const diff = options.since
+      ? (await runSyncSince(client, options.eventId, DATA_DIR, options.since)).diff
+      : await runSync(client, options.eventId, DATA_DIR);
     console.log(`新規: ${diff.added.length}件 / 変更: ${diff.changed.length}件 / キャンセル: ${diff.removed.length}件`);
     for (const s of diff.added) console.log(`  + ${s.sessionId} ${s.title}`);
     for (const c of diff.changed) console.log(`  * ${c.sessionId} ${c.after.title} (${c.changedFields.join(', ')})`);

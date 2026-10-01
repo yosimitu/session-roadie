@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stringify } from 'yaml';
-import { runSync } from '../commands/sync.js';
+import { runSync, runSyncSince } from '../commands/sync.js';
 import { runAuthStatus } from '../commands/authStatus.js';
 import { runScheduleStatus } from '../commands/scheduleStatus.js';
 import { reconcile } from '../schedule/reconcile.js';
@@ -49,9 +49,15 @@ export async function authLogoutTool() {
   return { signedOut: true };
 }
 
-export async function catalogSyncTool(eventId?: string) {
+/**
+ * sinceを指定すると「ここ一週間の新着は？」のように任意の過去日付（YYYY-MM-DD）との比較になる。
+ * 省略時は前回保存分（runSync）との比較。
+ */
+export async function catalogSyncTool(eventId?: string, since?: string) {
   const client = await createClient();
-  return runSync(client, resolveEventId(eventId), DATA_DIR);
+  const id = resolveEventId(eventId);
+  if (since) return runSyncSince(client, id, DATA_DIR, since);
+  return runSync(client, id, DATA_DIR);
 }
 
 export async function scheduleGetTool(eventId?: string) {
