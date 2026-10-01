@@ -20,6 +20,7 @@ describe('schedule writes', () => {
     expect(postJson).toHaveBeenCalledWith(
       '/v1/events/reinvent2026/schedule/reservations',
       { sessionIds: ['s1', 's2'] },
+      'ReserveSessions',
     );
   });
 
@@ -42,6 +43,7 @@ describe('schedule writes', () => {
     expect(status).toBe('alreadyGone');
     expect(deleteExpectNotFoundOk).toHaveBeenCalledWith(
       '/v1/events/reinvent2026/schedule/reservations/s1',
+      'CancelReservation',
     );
   });
 
@@ -56,6 +58,7 @@ describe('schedule writes', () => {
     expect(postJson).toHaveBeenCalledWith(
       '/v1/events/reinvent2026/schedule/favorites',
       { sessionIds: ['s1'] },
+      'AssociateFavorites',
     );
   });
 
@@ -68,6 +71,7 @@ describe('schedule writes', () => {
     expect(status).toBe('deleted');
     expect(deleteExpectNotFoundOk).toHaveBeenCalledWith(
       '/v1/events/reinvent2026/schedule/favorites/s1',
+      'DisassociateFavorite',
     );
   });
 });

@@ -6,11 +6,11 @@ import type { PersonalTimeInput, Schedule } from '../api/types.js';
 // 作成直後に GetSchedule を呼び直して resolvePersonalTimeId で ID を特定する必要がある。
 
 export async function createPersonalTime(client: ApiClient, eventId: string, input: PersonalTimeInput): Promise<void> {
-  await client.postJson<{ content: string }>(`/v1/events/${eventId}/schedule/personal-time`, input);
+  await client.postJson<{ content: string }>(`/v1/events/${eventId}/schedule/personal-time`, input, 'CreatePersonalTime');
 }
 
 export async function deletePersonalTime(client: ApiClient, eventId: string, personalTimeId: string): Promise<'deleted' | 'alreadyGone'> {
-  return client.deleteExpectNotFoundOk(`/v1/events/${eventId}/schedule/personal-time/${personalTimeId}`);
+  return client.deleteExpectNotFoundOk(`/v1/events/${eventId}/schedule/personal-time/${personalTimeId}`, 'DeletePersonalTime');
 }
 
 /** 作成直後の GetSchedule から、startDateTime + title が一致するエントリの personalTimeId を探す */

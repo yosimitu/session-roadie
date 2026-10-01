@@ -12,6 +12,6 @@ describe('runScheduleStatus', () => {
     const result = await runScheduleStatus(client, 'reinvent2026');
 
     expect(result).toEqual(schedule);
-    expect(get).toHaveBeenCalledWith('/v1/events/reinvent2026/schedule');
+    expect(get).toHaveBeenCalledWith('/v1/events/reinvent2026/schedule', 'GetSchedule');
   });
 });

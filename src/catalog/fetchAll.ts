@@ -6,7 +6,7 @@ export async function fetchAllSessions(client: ApiClient, eventId: string): Prom
   let nextToken: string | undefined;
   do {
     const query = nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : '';
-    const page = await client.get<ListSessionsPage>(`/v1/events/${eventId}/sessions${query}`);
+    const page = await client.get<ListSessionsPage>(`/v1/events/${eventId}/sessions${query}`, 'ListSessions');
     sessions.push(...page.items);
     nextToken = page.nextToken;
   } while (nextToken);
