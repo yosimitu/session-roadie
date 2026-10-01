@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { ApiClient } from './api/client.js';
 import { TokenStore } from './auth/tokenStore.js';
 import { runSync } from './commands/sync.js';
 import { runAuthStatus } from './commands/authStatus.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
+import { loadDesiredState } from './schedule/desiredStateStore.js';
+import { reconcile } from './schedule/reconcile.js';
+import { executeReconcilePlan } from './commands/applyPlan.js';
+import type { BulkResult, Schedule } from './api/types.js';
 
 const DEFAULT_EVENT_ID = 'reinvent2026';
 const DATA_DIR = join(process.cwd(), 'data');
@@ -13,6 +18,22 @@ const DATA_DIR = join(process.cwd(), 'data');
 function createClient(): ApiClient {
   const tokenStore = new TokenStore(join(DATA_DIR, 'token.json'));
   return new ApiClient({ getAccessToken: () => tokenStore.load()?.accessToken });
+}
+
+async function askConfirmation(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await rl.question(`${question} [y/N] `);
+    return answer.trim().toLowerCase() === 'y';
+  } finally {
+    rl.close();
+  }
+}
+
+function printBulkResult(label: string, result: BulkResult): void {
+  console.log(`${label}: 成功 ${result.successful.length}件 / 失敗 ${result.failed.length}件`);
+  for (const id of result.successful) console.log(`  ✓ ${id}`);
+  for (const f of result.failed) console.log(`  ✕ ${f.sessionId}（${f.code}）`);
 }
 
 const program = new Command();
@@ -43,6 +64,49 @@ program
     for (const id of schedule.reserved) console.log(`  予約: ${id}`);
     for (const id of schedule.favorites) console.log(`  お気に入り: ${id}`);
     for (const pt of schedule.personalTime) console.log(`  個人予定: ${pt.startDateTime} ${pt.title}`);
+  });
+
+program
+  .command('apply <desiredStateFile>')
+  .description('あるべき状態（予約・お気に入りのセッションID一覧）を実スケジュールと突き合わせ、差分だけ実行する（企画書 §5.2・§5.9）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-y, --yes', '確認プロンプトをスキップする', false)
+  .action(async (desiredStateFile: string, options: { eventId: string; yes: boolean }) => {
+    const client = createClient();
+    const desired = loadDesiredState(desiredStateFile);
+    const before = await runScheduleStatus(client, options.eventId);
+    const plan = reconcile(desired, before);
+
+    const hasChanges = [plan.toReserve, plan.toCancelReservation, plan.toFavorite, plan.toUnfavorite].some((l) => l.length > 0);
+    if (!hasChanges) {
+      console.log('現在の状態は意図と一致しています。');
+      return;
+    }
+
+    console.log('これから行う操作：');
+    for (const id of plan.toReserve) console.log(`  予約する    ${id}`);
+    for (const id of plan.toCancelReservation) console.log(`  予約を外す  ${id}`);
+    for (const id of plan.toFavorite) console.log(`  お気に入り  ${id}`);
+    for (const id of plan.toUnfavorite) console.log(`  お気に入り解除  ${id}`);
+
+    if (!options.yes && !(await askConfirmation('実行しますか？'))) {
+      console.log('キャンセルしました。');
+      return;
+    }
+
+    const result = await executeReconcilePlan(client, options.eventId, plan);
+    printBulkResult('予約', result.reserve);
+    printBulkResult('お気に入り', result.favorite);
+    for (const c of result.cancelReservation) console.log(`予約解除 ${c.sessionId}: ${c.status}`);
+    for (const u of result.unfavorite) console.log(`お気に入り解除 ${u.sessionId}: ${u.status}`);
+
+    // 企画書 §5.9: 実行後に必ずGetScheduleで実際の状態を取り直し、意図と突き合わせる
+    const after: Schedule = await runScheduleStatus(client, options.eventId);
+    const remaining = reconcile(desired, after);
+    const stillHasChanges = [remaining.toReserve, remaining.toCancelReservation, remaining.toFavorite, remaining.toUnfavorite].some((l) => l.length > 0);
+    console.log(stillHasChanges
+      ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
+      : '現在の状態は意図と一致しています。');
   });
 
 const auth = program.command('auth').description('Builder ID サインインの状態管理');
