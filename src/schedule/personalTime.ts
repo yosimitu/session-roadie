@@ -4,13 +4,15 @@ import type { PersonalTimeInput, Schedule } from '../api/types.js';
 // 2026-09-28 実データ確認: CreatePersonalTime/DeletePersonalTime は10/8の予約API開放を待たずに動作する
 // （企画書の書き込み制限の対象外）。成功レスポンスは {"content":""} のみで personalTimeId は返らないため、
 // 作成直後に GetSchedule を呼び直して resolvePersonalTimeId で ID を特定する必要がある。
+// エンドポイントパスは2026-10-01、実機のopenapi.jsonで確認・修正済み（`/v1/events/{eventId}/personal-time`。
+// 旧実装の `/schedule/personal-time` は誤り）。
 
 export async function createPersonalTime(client: ApiClient, eventId: string, input: PersonalTimeInput): Promise<void> {
-  await client.postJson<{ content: string }>(`/v1/events/${eventId}/schedule/personal-time`, input, 'CreatePersonalTime');
+  await client.postJson<{ content: string }>(`/v1/events/${eventId}/personal-time`, input, 'CreatePersonalTime');
 }
 
 export async function deletePersonalTime(client: ApiClient, eventId: string, personalTimeId: string): Promise<'deleted' | 'alreadyGone'> {
-  return client.deleteExpectNotFoundOk(`/v1/events/${eventId}/schedule/personal-time/${personalTimeId}`, 'DeletePersonalTime');
+  return client.deleteExpectNotFoundOk(`/v1/events/${eventId}/personal-time/${personalTimeId}`, 'DeletePersonalTime');
 }
 
 /** 作成直後の GetSchedule から、startDateTime + title が一致するエントリの personalTimeId を探す */

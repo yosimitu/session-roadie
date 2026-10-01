@@ -56,4 +56,14 @@ describe('ApiClient', () => {
     await expect(client.get('/v1/events/reinvent2026/schedule', 'GetSchedule')).rejects.toThrow(ApiError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('postJsonは204（2026-10-01実機確認: CreatePersonalTime等はボディ無しで返る）を例外にせずundefinedを返す', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new ApiClient({ getAccessToken: () => undefined });
+
+    const result = await client.postJson('/v1/events/reinvent2026/personal-time', {}, 'CreatePersonalTime');
+
+    expect(result).toBeUndefined();
+  });
 });

@@ -8,8 +8,8 @@ describe('executeReconcilePlan', () => {
     const reserveResult: BulkResult = { successful: ['s1'], failed: [] };
     const favoriteResult: BulkResult = { successful: ['s3'], failed: [] };
     const postJson = vi.fn()
-      .mockResolvedValueOnce(reserveResult)
-      .mockResolvedValueOnce(favoriteResult);
+      .mockResolvedValueOnce({ result: reserveResult })
+      .mockResolvedValueOnce({ result: favoriteResult });
     const deleteExpectNotFoundOk = vi.fn()
       .mockResolvedValueOnce('deleted')
       .mockResolvedValueOnce('alreadyGone');

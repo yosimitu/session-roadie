@@ -51,6 +51,10 @@ export class ApiClient {
     });
   }
 
+  /**
+   * 2026-10-01 実機確認: 書き込み系（CreatePersonalTime等）は成功時に204 No Content（ボディ無し）
+   * を返すため、res.json()を呼ばずundefinedを返す。
+   */
   async postJson<T>(path: string, body: unknown, operation: OperationName): Promise<T> {
     return this.withQuota(async () => {
       const res = await fetch(`${BASE_URL}${path}`, {
@@ -63,6 +67,7 @@ export class ApiClient {
         const errBody = await res.json().catch(() => undefined);
         throw new ApiError(res.status, errBody);
       }
+      if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
     });
   }
@@ -79,6 +84,7 @@ export class ApiClient {
         const errBody = await res.json().catch(() => undefined);
         throw new ApiError(res.status, errBody);
       }
+      if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
     });
   }

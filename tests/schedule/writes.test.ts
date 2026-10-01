@@ -9,16 +9,16 @@ import type { ApiClient } from '../../src/api/client.js';
 import type { BulkResult } from '../../src/api/types.js';
 
 describe('schedule writes', () => {
-  it('reserveSessions は BulkResult をそのまま返す（failedを握りつぶさない）', async () => {
+  it('reserveSessions は resultキーでラップされたレスポンス（2026-10-01実機確認）からBulkResultを取り出す', async () => {
     const result: BulkResult = { successful: ['s1'], failed: [{ sessionId: 's2', code: 'sessionFull' }] };
-    const postJson = vi.fn().mockResolvedValue(result);
+    const postJson = vi.fn().mockResolvedValue({ result });
     const client = { postJson } as unknown as ApiClient;
 
     const got = await reserveSessions(client, 'reinvent2026', ['s1', 's2']);
 
     expect(got).toEqual(result);
     expect(postJson).toHaveBeenCalledWith(
-      '/v1/events/reinvent2026/schedule/reservations',
+      '/v1/events/reinvent2026/reservations',
       { sessionIds: ['s1', 's2'] },
       'ReserveSessions',
     );
@@ -42,21 +42,21 @@ describe('schedule writes', () => {
 
     expect(status).toBe('alreadyGone');
     expect(deleteExpectNotFoundOk).toHaveBeenCalledWith(
-      '/v1/events/reinvent2026/schedule/reservations/s1',
+      '/v1/events/reinvent2026/reservations/s1',
       'CancelReservation',
     );
   });
 
-  it('associateFavorites は BulkResult をそのまま返す', async () => {
+  it('associateFavorites は resultキーでラップされたレスポンス（2026-10-01実機確認）からBulkResultを取り出す', async () => {
     const result: BulkResult = { successful: ['s1'], failed: [] };
-    const postJson = vi.fn().mockResolvedValue(result);
+    const postJson = vi.fn().mockResolvedValue({ result });
     const client = { postJson } as unknown as ApiClient;
 
     const got = await associateFavorites(client, 'reinvent2026', ['s1']);
 
     expect(got).toEqual(result);
     expect(postJson).toHaveBeenCalledWith(
-      '/v1/events/reinvent2026/schedule/favorites',
+      '/v1/events/reinvent2026/favorites',
       { sessionIds: ['s1'] },
       'AssociateFavorites',
     );
@@ -70,7 +70,7 @@ describe('schedule writes', () => {
 
     expect(status).toBe('deleted');
     expect(deleteExpectNotFoundOk).toHaveBeenCalledWith(
-      '/v1/events/reinvent2026/schedule/favorites/s1',
+      '/v1/events/reinvent2026/favorites/s1',
       'DisassociateFavorite',
     );
   });

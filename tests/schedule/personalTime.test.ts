@@ -16,7 +16,7 @@ describe('createPersonalTime', () => {
 
     await createPersonalTime(client, 'reinvent2026', input);
 
-    expect(postJson).toHaveBeenCalledWith('/v1/events/reinvent2026/schedule/personal-time', input, 'CreatePersonalTime');
+    expect(postJson).toHaveBeenCalledWith('/v1/events/reinvent2026/personal-time', input, 'CreatePersonalTime');
   });
 });
 
@@ -28,7 +28,7 @@ describe('deletePersonalTime', () => {
     const status = await deletePersonalTime(client, 'reinvent2026', 'pt-1');
 
     expect(status).toBe('alreadyGone');
-    expect(deleteExpectNotFoundOk).toHaveBeenCalledWith('/v1/events/reinvent2026/schedule/personal-time/pt-1', 'DeletePersonalTime');
+    expect(deleteExpectNotFoundOk).toHaveBeenCalledWith('/v1/events/reinvent2026/personal-time/pt-1', 'DeletePersonalTime');
   });
 });
 
