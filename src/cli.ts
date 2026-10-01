@@ -4,9 +4,8 @@ import { join } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface, type Interface } from 'node:readline';
 import { stringify } from 'yaml';
-import { ApiClient, ApiError } from './api/client.js';
-import { TokenStore } from './auth/tokenStore.js';
-import { signIn, signOut, ensureAccessToken } from './auth/signIn.js';
+import { ApiError } from './api/client.js';
+import { signIn, signOut } from './auth/signIn.js';
 import { runSync } from './commands/sync.js';
 import { runAuthStatus } from './commands/authStatus.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
@@ -22,24 +21,8 @@ import { buildNotesSummary } from './reporting/notesSummary.js';
 import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingRole, type OnboardingPurpose, type OnboardingStamina } from './onboarding/wizard.js';
 import { findConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import type { BulkResult, Schedule, Session } from './api/types.js';
-
-const DEFAULT_EVENT_ID = 'reinvent2026';
-const DATA_DIR = join(process.cwd(), 'data');
-const NOTES_PATH = join(DATA_DIR, 'notes.yaml');
-
-function getTokenStore(): TokenStore {
-  return new TokenStore(join(DATA_DIR, 'token.json'));
-}
-
-// 401対策（企画書 §5.9と同じ「必ず最新状態を取り直す」思想）として、呼び出し前に一度だけ
-// ensureAccessTokenでリフレッシュを試みる。ApiClientのgetAccessTokenは同期関数のため、
-// 取得した値をクロージャで固定して渡す。
-async function createClient(): Promise<ApiClient> {
-  const tokenStore = getTokenStore();
-  const accessToken = await ensureAccessToken(tokenStore);
-  return new ApiClient({ getAccessToken: () => accessToken });
-}
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
 // パイプ入力（テスト・自動化実行）では readline が全行を同じティックで同期的に 'line' イベント
