@@ -66,6 +66,18 @@ node dist/cli.js auth login
 
 このファイルに何を入れるか（＝自由文の意図をどのセッションIDに変換するか）は、本ツールの外側（対話的なエージェントや利用者自身の判断）が担います。Session Roadie は「決まった、あるべき状態」を安全かつ冪等に実行する部分を受け持ちます。
 
+### Claude Code から使う（MCPサーバー）
+
+CLIに加えて、`re-roadie mcp` でMCPサーバー（stdio）としても起動できます。Claude Codeで本プロジェクトを開くと、`.mcp.json` に登録済みの `session-roadie` サーバーと、`.claude/skills/re-roadie/SKILL.md`（MCPツールをどの順番で呼ぶかという手順書）が自動的に使えます。
+
+```
+Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジックは全部ここ） → AWS Events REST API
+```
+
+- ロジック（差分計算・冪等な再照合・移動時間計算・クォータ制御・代替判定）はすべて re:Roadie 側にあり、スキルは「どの順番で呼ぶか」だけを定義します。
+- 書き込み系ツール（`schedule_apply`/`travel_blocks_apply`/`notes_reminders_apply`）は確認プロンプトを持たず、呼ばれたら即実行します。確認は `*_plan` ツールで事前に差分を見せたうえで、呼び出し側（スキル経由のClaude）が担います。
+- 公開しているツールは [src/mcp/server.ts](src/mcp/server.ts) を参照してください（`auth_*`/`catalog_sync`/`schedule_*`/`conflicts_get`/`travel_blocks_*`/`notes_*`/`onboarding_save` の16個）。
+
 ## 現状の制約
 
 - **`ReserveSessions`/`CancelReservation` は未検証**です。2026-10-08の予約API開放前のため、モックテストのみで実レスポンスでの確認ができていません。
@@ -91,8 +103,10 @@ src/
   planning/   代替判定（再演・類似セッション）
   reporting/  帰国後報告の生成
   onboarding/ 初参加者向け対話ウィザードのロジック
-  commands/   CLIコマンドの実処理（テスト可能な純粋関数として分離）
-  cli.ts      commanderによるCLIエントリポイント（実行コマンド名: `re-roadie`）
+  commands/   CLI/MCP共通の実処理（テスト可能な純粋関数として分離）
+  mcp/        MCPサーバー（tools.tsがハンドラ、server.tsがMcpServerへの登録）
+  runtimeContext.ts  CLI/MCP共通の設定（データディレクトリ、ApiClient生成）
+  cli.ts      commanderによるCLIエントリポイント（実行コマンド名: `re-roadie`。`re-roadie mcp` でMCPサーバーとして起動）
 ```
 
 ## まだ終えていないこと
