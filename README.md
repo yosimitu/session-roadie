@@ -28,11 +28,14 @@ npm run build
 
 ## 使い方
 
-初回は対話ウィザードで簡単なプロフィールと意図を作成します（YAMLを直接書く必要はありません）。
+初回は対話ウィザードで簡単なプロフィールと意図を作成し、Builder IDでサインインします（YAMLを直接書く必要はありません）。
 
 ```bash
 node dist/cli.js init
+node dist/cli.js auth login
 ```
+
+`auth login` はブラウザを開いて Builder ID のサインイン画面に遷移します。サインイン後、ブラウザは `http://localhost:8484`〜`8489` のいずれかに戻ります（ローカルで待ち受けるだけで、外部に公開されるポートではありません）。
 
 ### 代表的なコマンド
 
@@ -44,7 +47,9 @@ node dist/cli.js init
 | `night-shift conflicts` | 予約済みセッションの時間重複を検出し、再演・類似セッションの有無という事実ベースの根拠つきで「諦めてよいもの」を提案する |
 | `night-shift travel-blocks` | 予約済みセッション間の移動時間を計算し、間に合わない場合は警告、間に合う場合は `CreatePersonalTime` で移動時間を公式スケジュールに書き込む |
 | `night-shift notes add/list/report/apply` | セッションへのメモの記録・一覧・テーマ別の帰国後報告・当日リマインダーの書き込み |
+| `night-shift auth login` | ブラウザでBuilder IDにサインインする |
 | `night-shift auth status` | サインイン状態を表示する |
+| `night-shift auth logout` | サインアウトする（refresh tokenを失効させ、ローカルのトークンを削除し、Builder IDのブラウザセッションも終了する） |
 
 `apply`/`travel-blocks`/`notes apply` は実行前に確認プロンプトを出します。自動実行したい場合は `-y`/`--yes` を付けてください。
 
@@ -61,7 +66,7 @@ node dist/cli.js init
 
 ## 現状の制約
 
-- **Builder ID のサインインフロー本体は未実装**です（[src/auth/tokenStore.ts](src/auth/tokenStore.ts) はトークンの保存・読み込みのみ）。認可サーバーのエンドポイント（authorize/token URL）が実データ未確認のため、`node dist/cli.js auth status` は常に「未サインイン」と表示されます。サインインが必要なAPI呼び出しは401になります。
+- **Builder ID のサインインフローは実装済みですが、実アカウントでの動作は未確認**です（[src/auth/signIn.ts](src/auth/signIn.ts)）。エンドポイントは公式ドキュメント（`docs.aws.amazon.com/events/latest/devguide/auth-endpoints.html`）に基づいていますが、実機での `auth login` 実行による確認はまだ行っていません。
 - **`ReserveSessions`/`CancelReservation` は未検証**です。2026-10-08の予約API開放前のため、モックテストのみで実レスポンスでの確認ができていません。
 - **会場間の移動時間テーブル（[src/schedule/travelTime.ts](src/schedule/travelTime.ts)）は実測値ではありません**。企画書の「20〜40分」という大まかな記述を根拠にした仮の概算値です。
 - **PersonalTimeの日時はPST固定（UTC-8）で計算**しています。re:Invent会期（2026年12月上旬）はサマータイムの影響を受けない前提です。
@@ -77,7 +82,7 @@ npm test
 ```
 src/
   api/        AWS Events APIの型定義・クォータ管理・HTTPクライアント
-  auth/       Builder IDトークンのローカル保存
+  auth/       Builder ID OAuth(PKCE)サインイン・トークンの自動更新とローカル保存
   profile/    プロフィール・意図・メモのローカルストア
   catalog/    セッション全件取得・スナップショット保存・差分検知
   schedule/   再照合ロジック・書き込みラッパー・移動時間ブロック
