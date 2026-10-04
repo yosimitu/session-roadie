@@ -38,6 +38,16 @@ describe('runSync', () => {
     expect(diff.changed).toHaveLength(1);
     expect(diff.changed[0].sessionId).toBe('s1');
   });
+
+  it('取得結果が0件で保存済みスナップショットがある場合は、上書きせず例外を投げる', async () => {
+    saveSnapshot('reinvent2026', [{ sessionId: 's1', title: 'A' }], dir);
+    const get = async () => ({ items: [], totalCount: 0 });
+    const client = { get } as unknown as ApiClient;
+
+    await expect(runSync(client, 'reinvent2026', dir)).rejects.toThrow(/0件/);
+
+    expect(loadSnapshot('reinvent2026', dir)).toEqual([{ sessionId: 's1', title: 'A' }]);
+  });
 });
 
 describe('runSyncSince', () => {
@@ -61,6 +71,16 @@ describe('runSyncSince', () => {
     const client = { get } as unknown as ApiClient;
 
     await expect(runSyncSince(client, 'reinvent2026', dir, '2026-09-20')).rejects.toThrow(/2026-09-28/);
+  });
+
+  it('取得結果が0件で保存済みスナップショットがある場合は、上書きせず例外を投げる', async () => {
+    saveSnapshot('reinvent2026', [{ sessionId: 's1', title: 'A' }], dir, '2026-09-24');
+    const get = async () => ({ items: [], totalCount: 0 });
+    const client = { get } as unknown as ApiClient;
+
+    await expect(runSyncSince(client, 'reinvent2026', dir, '2026-09-24')).rejects.toThrow(/0件/);
+
+    expect(loadSnapshot('reinvent2026', dir)).toEqual([{ sessionId: 's1', title: 'A' }]);
   });
 
   it('比較先の日付が無く例外を投げる場合でも、取得した最新カタログは保存し直す', async () => {

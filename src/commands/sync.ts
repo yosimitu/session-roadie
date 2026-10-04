@@ -1,7 +1,22 @@
 import type { ApiClient } from '../api/client.js';
+import type { Session } from '../api/types.js';
 import { fetchAllSessions } from '../catalog/fetchAll.js';
 import { loadSnapshot, saveSnapshot, loadSnapshotByDate, listSnapshotDates } from '../catalog/store.js';
 import { diffCatalog, type CatalogDiff } from '../catalog/diff.js';
+
+/**
+ * 取得結果が0件で、保存済みの最新スナップショットが1件以上ある場合は例外を投げる。
+ * APIが一時的に空を返したときに、有効なスナップショットを空で上書きしないための保護。
+ */
+function assertNotEmptyOverwrite(eventId: string, dataDir: string, after: Session[]): void {
+  if (after.length > 0) return;
+  const latest = loadSnapshot(eventId, dataDir);
+  if (latest && latest.length > 0) {
+    throw new Error(
+      `カタログの取得結果が0件でした。保存済みのスナップショット（${latest.length}件）を空で上書きしないため、保存せず中断します。APIの状態を確認して、時間をおいて再実行してください。`,
+    );
+  }
+}
 
 /**
  * カタログを全件取得し、前回のローカルスナップショットと比較して差分を返す。
@@ -10,6 +25,7 @@ import { diffCatalog, type CatalogDiff } from '../catalog/diff.js';
 export async function runSync(client: ApiClient, eventId: string, dataDir: string): Promise<CatalogDiff> {
   const before = loadSnapshot(eventId, dataDir) ?? [];
   const after = await fetchAllSessions(client, eventId);
+  assertNotEmptyOverwrite(eventId, dataDir, after);
   const diff = diffCatalog(before, after);
   saveSnapshot(eventId, after, dataDir);
   return diff;
@@ -29,6 +45,7 @@ export interface SyncSinceResult {
  */
 export async function runSyncSince(client: ApiClient, eventId: string, dataDir: string, sinceDate: string): Promise<SyncSinceResult> {
   const after = await fetchAllSessions(client, eventId);
+  assertNotEmptyOverwrite(eventId, dataDir, after);
   const before = loadSnapshotByDate(eventId, dataDir, sinceDate);
   saveSnapshot(eventId, after, dataDir);
 
