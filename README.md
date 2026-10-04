@@ -4,7 +4,9 @@
 
 re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) でセッションの計画・予約・移動時間確保・変更追従を行い、結果を**公式アプリの個人スケジュールに書き戻す**ローカルCLIエージェントです。
 
-自作のUIは持ちません。会場では公式アプリを見るだけで済むようにする、という発想が中核です（詳細は `docs/superpowers/plans/2026-09-27-night-shift-implementation.md` と企画書を参照）。
+自作のUIは持ちません。会場では公式アプリを見るだけで済むようにする、という発想が中核です（開発の経緯と実機確認の記録は `docs/superpowers/plans/2026-09-27-night-shift-implementation.md` を参照）。
+
+> **注意**: 本ツールは個人が開発した非公式のツールで、AWS・Amazon が提供・承認したものではありません。AWS Events API の公式ドキュメントに基づいて動作しますが、利用は自己責任でお願いします。予約・お気に入り・個人予定を実際に書き換えるため、実行前に必ず差分を確認してください。
 
 ## このツールが守っていること
 
@@ -135,9 +137,9 @@ Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジ�
 ## 現状の制約
 
 - **`ReserveSessions`/`CancelReservation` は未検証**です。2026-10-08の予約API開放前のため、モックテストのみで実レスポンスでの確認ができていません。
-- **会場間の移動時間テーブル（[src/schedule/travelTime.ts](src/schedule/travelTime.ts)）は実測値ではありません**。企画書の「20〜40分」という大まかな記述を根拠にした仮の概算値です。
+- **会場間の移動時間テーブル（[src/schedule/travelTime.ts](src/schedule/travelTime.ts)）は実測値ではありません**。会場間は「20〜40分」程度という大まかな目安を根拠にした仮の概算値です。
 - **PersonalTimeの日時はPST固定（UTC-8）で計算**しています。`GetEvent`の実データ（`startDate`/`endDate`のISO8601オフセット）で裏付け済みです。
-- **`CreatePersonalTime`で書き込んだ内容が公式アプリ（スマートフォン）のカレンダーに反映されるまで、数分〜十数分のラグがあります**（2026-10-01実機確認）。サーバー側のデータ（`GetSchedule`で取得できる内容）は即座に正しく更新されますが、アプリのクライアント側キャッシュへの反映はすぐではありません。「予定が自動で直る」デモを撮る際はこの遅延を考慮してください。
+- **`CreatePersonalTime`で書き込んだ内容が公式アプリ（スマートフォン）のカレンダーに反映されるまで、数分〜十数分のラグがあります**（2026-10-01実機確認）。サーバー側のデータ（`GetSchedule`で取得できる内容）は即座に正しく更新されますが、アプリのクライアント側キャッシュへの反映はすぐではありません。
 
 ## テスト
 
@@ -162,14 +164,6 @@ src/
   runtimeContext.ts  CLI/MCP共通の設定（データディレクトリ、ApiClient生成）
   cli.ts      commanderによるCLIエントリポイント（実行コマンド名: `re-roadie`。`re-roadie mcp` でMCPサーバーとして起動）
 ```
-
-## まだ終えていないこと
-
-- デモ動画の撮影（「予定が壊れて自動で直る」様子を30秒で示す）
-- Builder Center プロジェクトとしての提出
-- 応募資格・除外規定の確認
-
-これらは人間の判断・操作が必要なため、本READMEの対象外です。
 
 ## ライセンス
 
