@@ -15,10 +15,10 @@ describe('loadDesiredState', () => {
     expect(loadDesiredState(path)).toEqual({ reserve: ['s1'], favorite: ['s2'] });
   });
 
-  it('reserve/favoriteが欠けていれば空配列で補う', () => {
+  it('reserve/favoriteが欠けていればundefined（現状維持）のままにする', () => {
     const path = join(dir, 'desired.json');
-    writeFileSync(path, JSON.stringify({}));
-    expect(loadDesiredState(path)).toEqual({ reserve: [], favorite: [] });
+    writeFileSync(path, JSON.stringify({ reserve: ['s1'] }));
+    expect(loadDesiredState(path)).toEqual({ reserve: ['s1'], favorite: undefined });
   });
 
   it('ファイルが無ければエラーを投げる（意図ファイルは明示指定が前提のため、無言でからの状態にしない）', () => {

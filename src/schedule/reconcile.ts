@@ -4,9 +4,11 @@ import type { Schedule } from '../api/types.js';
 // GetSchedule で取り直した実スケジュールとの差分だけを計算する。
 // 「意図」は自由文（Intent.freeText）から対話/推論で導出した、
 // あるべき状態（予約したい・お気に入りにしたいセッションID集合）として渡す。
+// 省略（undefined）は「その種類は現状維持」。LLMが引数を省いただけで全解除される事故を防ぐため、
+// 全解除したい場合は空配列 [] を明示する。
 export interface DesiredState {
-  reserve: string[];  // sessionId[]
-  favorite: string[]; // sessionId[]
+  reserve?: string[];  // sessionId[]
+  favorite?: string[]; // sessionId[]
 }
 
 export interface ReconcilePlan {
@@ -16,7 +18,8 @@ export interface ReconcilePlan {
   toUnfavorite: string[];
 }
 
-function diffIds(desired: string[], actual: string[]): { toAdd: string[]; toRemove: string[] } {
+function diffIds(desired: string[] | undefined, actual: string[]): { toAdd: string[]; toRemove: string[] } {
+  if (desired === undefined) return { toAdd: [], toRemove: [] };
   const desiredSet = new Set(desired);
   const actualSet = new Set(actual);
   return {

@@ -39,6 +39,19 @@ describe('reconcile', () => {
     expect(plan.toUnfavorite).toEqual([]);
   });
 
+  it('favoriteを省略すると、お気に入りは現状維持（解除しない）', () => {
+    const plan = reconcile({ reserve: ['s1'] }, schedule({ favorites: ['f1', 'f2'] }));
+    expect(plan.toReserve).toEqual(['s1']);
+    expect(plan.toFavorite).toEqual([]);
+    expect(plan.toUnfavorite).toEqual([]);
+  });
+
+  it('reserveを省略すると、予約は現状維持（取り消さない）', () => {
+    const plan = reconcile({ favorite: [] }, schedule({ reserved: ['s1'], favorites: ['f1'] }));
+    expect(plan.toCancelReservation).toEqual([]);
+    expect(plan.toUnfavorite).toEqual(['f1']);
+  });
+
   it('同じ入力なら常に同じ結果を返す（冪等性）', () => {
     const desired = { reserve: ['s1', 's2'], favorite: ['s3'] };
     const actual = schedule({ reserved: ['s2'], favorites: [] });

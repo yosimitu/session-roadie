@@ -8,8 +8,5 @@ import type { DesiredState } from './reconcile.js';
 export function loadDesiredState(path: string): DesiredState {
   const raw = readFileSync(path, 'utf-8');
   const parsed = JSON.parse(raw) as Partial<DesiredState>;
-  return {
-    reserve: parsed.reserve ?? [],
-    favorite: parsed.favorite ?? [],
-  };
+  return { reserve: parsed.reserve, favorite: parsed.favorite };
 }
