@@ -15,6 +15,21 @@ describe('findRepeat', () => {
     expect(findRepeat([target, repeat, other], target)?.sessionId).toBe('s2');
   });
 
+  it('"-R"から"-R1"を、"-R1"から"-R"を相互に見つける（元番号が無い組）', () => {
+    const r = session({ sessionId: 'r', abbreviation: 'DAT410-R' });
+    const r1 = session({ sessionId: 'r1', abbreviation: 'DAT410-R1' });
+    const other = session({ sessionId: 'x', abbreviation: 'DAT4101-R' });
+
+    expect(findRepeat([r, r1, other], r)?.sessionId).toBe('r1');
+    expect(findRepeat([r, r1, other], r1)?.sessionId).toBe('r');
+  });
+
+  it('"-R"から元番号のセッションも見つける', () => {
+    const original = session({ sessionId: 'o', abbreviation: 'DAT205' });
+    const r = session({ sessionId: 'r', abbreviation: 'DAT205-R' });
+    expect(findRepeat([original, r], r)?.sessionId).toBe('o');
+  });
+
   it('再演が無ければundefinedを返す', () => {
     const target = session({ sessionId: 's1', abbreviation: 'SVS401' });
     expect(findRepeat([target], target)).toBeUndefined();

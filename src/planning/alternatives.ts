@@ -3,15 +3,25 @@ import type { Session } from '../api/types.js';
 // 企画書 §5.4「諦める判断を支援する」: 判断材料はすべてAPIから取得した事実（再演の有無、
 // Speaker一致、トピック一致）であり、AIの主観は使わない。
 
-/** abbreviationの末尾 "-R"（連番なし、2026-09-28実データ確認）を手がかりに再演を探す */
+/**
+ * 再演サフィックスを除いたセッション番号（"DAT410-R1" → "DAT410"）。
+ * 2026-10-01実データでは "-R"（485件）・"-R1"（436件）・"-R2"以降（9件）が混在し、元番号が存在しない組も多い。
+ */
+export function baseAbbreviation(abbreviation: string): string {
+  return abbreviation.replace(/-R\d*$/, '');
+}
+
+/** 同じ元番号を持つ自分以外のセッション（元・-R・-R1… のどれからでも相互に見つける） */
+export function findRepeats(sessions: Session[], target: Session): Session[] {
+  if (!target.abbreviation) return [];
+  const base = baseAbbreviation(target.abbreviation);
+  return sessions.filter(
+    (s) => s.sessionId !== target.sessionId && s.abbreviation !== undefined && baseAbbreviation(s.abbreviation) === base,
+  );
+}
+
 export function findRepeat(sessions: Session[], target: Session): Session | undefined {
-  if (!target.abbreviation) return undefined;
-  const baseNumber = target.abbreviation.replace(/-R$/, '');
-  if (baseNumber === target.abbreviation) {
-    // target自身が再演（-R付き）の場合は、同じbaseNumberの元セッションを探す
-    return sessions.find((s) => s.sessionId !== target.sessionId && s.abbreviation === `${baseNumber}-R`);
-  }
-  return sessions.find((s) => s.sessionId !== target.sessionId && s.abbreviation === `${baseNumber}-R`);
+  return findRepeats(sessions, target)[0];
 }
 
 /** 同じトピックまたは同じSpeakerを持つ、自分以外のセッションを探す */

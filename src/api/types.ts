@@ -16,7 +16,7 @@ export interface Speaker {
 export interface Session {
   sessionId: string;
   title: string;
-  abbreviation?: string;   // 例 "AIM101"。再演は同じ番号に "-R" サフィックス（連番なし）が付く（例 "CMP333-R"）。2026-09-28 実データで確認
+  abbreviation?: string;   // 例 "AIM101"。再演は同じ番号に "-R"/"-R1"/"-R2"… が付き、元番号が無い組もある（2026-10-01 実データで確認）
   abstract?: string;
   type?: string;           // 実値7種（2026-09-28確認）: "Breakout session" | "Chalk talk" | "Workshop" | "Builders' session" | "Code talk" | "Gamified learning" | "Lightning talk"。オンデマンド判定の代理指標
   level?: string;           // "300 - Advanced"
