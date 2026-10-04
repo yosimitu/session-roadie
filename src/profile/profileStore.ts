@@ -1,8 +1,15 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
 
+export type Purpose = 'learning' | 'research' | 'networking' | 'report';
+export type Stamina = 'packed' | 'normal' | 'relaxed';
+
 export interface Profile {
   role?: string;
+  purpose?: Purpose;
+  stamina?: Stamina;
+  attendance?: { firstDay?: string; lastDay?: string }; // 会場（PST）の日付 "YYYY-MM-DD"
+  interestTopics?: string[]; // カタログの topics の値（例 "Security & Identity"）
   yearsOfExperience?: number;
   certifications?: string[];
   upcomingCertifications?: string[];
