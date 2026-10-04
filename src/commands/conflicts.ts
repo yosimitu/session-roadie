@@ -1,5 +1,38 @@
-import type { Session } from '../api/types.js';
+import type { PersonalTime, Session } from '../api/types.js';
 import { sessionStartUtc, sessionEndUtc } from '../schedule/sessionTimeUtc.js';
+import { blockingPersonalTimes, personalTimeRangeUtc } from '../schedule/blockingPersonalTime.js';
+
+export interface PersonalTimeConflict {
+  sessionId: string;
+  personalTimeId: string;
+  personalTimeTitle: string;
+  startDateTime: string; // UTC（PersonalTimeの形式のまま）
+  endDateTime: string;
+}
+
+/** 予約済みセッションと、利用者が入れた個人予定（基調講演など）との重複を返す */
+export function findPersonalTimeConflicts(sessions: Session[], personalTimes: PersonalTime[]): PersonalTimeConflict[] {
+  const conflicts: PersonalTimeConflict[] = [];
+  for (const pt of blockingPersonalTimes(personalTimes)) {
+    const range = personalTimeRangeUtc(pt);
+    if (!range) continue;
+    for (const s of sessions) {
+      const start = sessionStartUtc(s);
+      const end = sessionEndUtc(s);
+      if (!start || !end) continue;
+      if (start < range.end && range.start < end) {
+        conflicts.push({
+          sessionId: s.sessionId,
+          personalTimeId: pt.personalTimeId,
+          personalTimeTitle: pt.title,
+          startDateTime: pt.startDateTime,
+          endDateTime: pt.endDateTime,
+        });
+      }
+    }
+  }
+  return conflicts;
+}
 
 function overlaps(a: Session, b: Session): boolean {
   const aStart = sessionStartUtc(a);
