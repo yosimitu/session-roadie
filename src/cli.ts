@@ -17,8 +17,11 @@ import { loadSnapshot } from './catalog/store.js';
 import { loadNotes, saveNotes } from './profile/notesStore.js';
 import { buildNoteReminderPlan, applyNoteReminders } from './commands/noteReminders.js';
 import { buildNotesSummary } from './reporting/notesSummary.js';
-import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingRole, type OnboardingPurpose, type OnboardingStamina } from './onboarding/wizard.js';
-import { findConflicts } from './commands/conflicts.js';
+import {
+  buildProfileFromOnboarding, buildIntentFromOnboarding, ONBOARDING_EVENT_DATES, INTEREST_OPTIONS,
+  type OnboardingRole, type OnboardingPurpose, type OnboardingStamina, type OnboardingInterest,
+} from './onboarding/wizard.js';
+import { findConflicts, findPersonalTimeConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { startMcpServer } from './mcp/server.js';
@@ -74,6 +77,14 @@ async function askChoice<T extends string>(question: string, choices: { value: T
   return choices[index]?.value ?? choices[0].value;
 }
 
+async function askMultiChoice<T extends string>(question: string, choices: { value: T; label: string }[]): Promise<T[]> {
+  console.log(question);
+  choices.forEach((c, i) => console.log(`  ${i + 1}. ${c.label}`));
+  const answer = await askLine('番号をカンマ区切りで（特になしはそのままEnter）: ');
+  const picked = answer.split(',').map((s) => choices[Number(s.trim()) - 1]?.value).filter((v): v is T => Boolean(v));
+  return [...new Set(picked)];
+}
+
 function printBulkResult(label: string, result: BulkResult): void {
   console.log(`${label}: 成功 ${result.successful.length}件 / 失敗 ${result.failed.length}件`);
   for (const id of result.successful) console.log(`  ✓ ${id}`);
@@ -109,7 +120,18 @@ program
         { value: 'relaxed', label: '余裕を持ちたい' },
       ]);
 
-      const answers = { role, purpose, stamina };
+      const dayChoices = [
+        { value: '', label: '未定（全日程）' },
+        ...ONBOARDING_EVENT_DATES.map((d) => ({ value: d, label: d })),
+      ];
+      const firstDay = (await askChoice('参加できる初日は？', dayChoices)) || undefined;
+      const lastDay = (await askChoice('参加できる最終日は？', dayChoices)) || undefined;
+      const interests = await askMultiChoice<OnboardingInterest>(
+        '関心のあるテーマは？（任意・複数可）',
+        (Object.keys(INTEREST_OPTIONS) as OnboardingInterest[]).map((value) => ({ value, label: INTEREST_OPTIONS[value].label })),
+      );
+
+      const answers = { role, purpose, stamina, firstDay, lastDay, interests };
       const profile = buildProfileFromOnboarding(answers);
       const intent = buildIntentFromOnboarding(answers);
 
@@ -257,10 +279,16 @@ program
       .filter((s): s is Session => Boolean(s));
 
     const groups = findConflicts(reservedSessions);
-    if (groups.length === 0) {
+    const personalTimeConflicts = findPersonalTimeConflicts(reservedSessions, schedule.personalTime);
+    if (groups.length === 0 && personalTimeConflicts.length === 0) {
       console.log('時間が重複している予約はありません。');
       return;
     }
+
+    for (const c of personalTimeConflicts) {
+      console.log(`${c.sessionId} が個人予定「${c.personalTimeTitle}」（${c.startDateTime}〜${c.endDateTime} UTC）と重なっています。`);
+    }
+    if (personalTimeConflicts.length > 0) console.log('');
 
     for (const group of groups) {
       const { recommended, reasons } = recommendForConflict(group, snapshot);
@@ -341,10 +369,10 @@ const auth = program.command('auth').description('Builder ID サインインの�
 auth
   .command('status')
   .description('サインイン状態を表示する')
-  .action(() => {
-    const status = runAuthStatus(getTokenStore());
+  .action(async () => {
+    const status = await runAuthStatus(getTokenStore());
     if (status.signedIn) {
-      console.log(`サインイン済み（有効期限: ${new Date(status.expiresAt!).toISOString()}）`);
+      console.log(`サインイン済み（有効期限: ${status.expiresAt}${status.refreshed ? '、refresh tokenで更新しました' : ''}）`);
     } else {
       console.log('未サインイン');
     }

@@ -8,6 +8,8 @@ import { ensureAccessToken } from './auth/signIn.js';
 export const DEFAULT_EVENT_ID = 'reinvent2026';
 export const DATA_DIR = join(process.cwd(), 'data');
 export const NOTES_PATH = join(DATA_DIR, 'notes.yaml');
+export const PROFILE_PATH = join(DATA_DIR, 'profile.yaml');
+export const INTENT_PATH = join(DATA_DIR, 'intent.txt');
 
 export function getTokenStore(): TokenStore {
   return new TokenStore(join(DATA_DIR, 'token.json'));
