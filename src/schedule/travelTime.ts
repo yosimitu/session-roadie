@@ -11,7 +11,21 @@ const TRAVEL_MINUTES: Record<string, Record<string, number>> = {
 /** 未知の会場ペアは安全側（最長の40分）に倒す */
 const UNKNOWN_VENUE_FALLBACK_MINUTES = 40;
 
+// カタログのvenueは "MGM Grand" / "Caesars Forum" / "Venetian"（2026-10-01実データ）で、テーブルのキーと一致しない
+const VENUE_PATTERNS: [RegExp, string][] = [
+  [/venetian/i, 'Venetian'],
+  [/wynn/i, 'Wynn'],
+  [/caesars/i, 'Caesars'],
+  [/mgm/i, 'MGM'],
+];
+
+export function normalizeVenue(venue: string): string {
+  return VENUE_PATTERNS.find(([pattern]) => pattern.test(venue))?.[1] ?? venue.trim();
+}
+
 export function getTravelMinutes(venueA: string, venueB: string): number {
-  if (venueA === venueB) return 0;
-  return TRAVEL_MINUTES[venueA]?.[venueB] ?? UNKNOWN_VENUE_FALLBACK_MINUTES;
+  const a = normalizeVenue(venueA);
+  const b = normalizeVenue(venueB);
+  if (a === b) return 0;
+  return TRAVEL_MINUTES[a]?.[b] ?? UNKNOWN_VENUE_FALLBACK_MINUTES;
 }

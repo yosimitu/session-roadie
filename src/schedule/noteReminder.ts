@@ -3,6 +3,7 @@ import { sanitizeForPersonalTime } from './sanitizeText.js';
 import { sessionStartUtc, toPersonalTimeDateTime } from './sessionTimeUtc.js';
 
 const LEAD_MINUTES = 15;
+export const NOTE_REMINDER_TITLE_PREFIX = '📝 ';
 
 /**
  * メモをセッション開始前に表示するための PersonalTimeInput を作る（企画書 §5.7「当日の表示」）。
@@ -16,7 +17,7 @@ export function buildNoteReminder(session: Session, note: string): PersonalTimeI
   return {
     startDateTime: toPersonalTimeDateTime(reminderStart),
     endDateTime: toPersonalTimeDateTime(start),
-    title: sanitizeForPersonalTime(`📝 ${session.title}`),
+    title: sanitizeForPersonalTime(`${NOTE_REMINDER_TITLE_PREFIX}${session.title}`),
     description: sanitizeForPersonalTime(note),
   };
 }

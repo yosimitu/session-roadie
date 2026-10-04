@@ -3,6 +3,8 @@ import { getTravelMinutes } from './travelTime.js';
 import { sanitizeForPersonalTime } from './sanitizeText.js';
 import { sessionStartUtc, sessionEndUtc, toPersonalTimeDateTime } from './sessionTimeUtc.js';
 
+export const TRAVEL_BLOCK_DESCRIPTION_MARKER = '分の移動時間を確保';
+
 export interface TravelBlockResult {
   sufficient: boolean;
   requiredMinutes: number;
@@ -33,7 +35,7 @@ export function computeTravelBlock(sessionA: Session, sessionB: Session): Travel
     startDateTime: toPersonalTimeDateTime(endA),
     endDateTime: toPersonalTimeDateTime(startB),
     title: sanitizeForPersonalTime(`${sessionA.venue} → ${sessionB.venue} 移動`),
-    description: sanitizeForPersonalTime(`${requiredMinutes}分の移動時間を確保（概算値・要検証）`),
+    description: sanitizeForPersonalTime(`${requiredMinutes}${TRAVEL_BLOCK_DESCRIPTION_MARKER}（概算値・要検証）`),
   };
 
   return { sufficient, requiredMinutes, availableMinutes, personalTime };
