@@ -1,5 +1,7 @@
 # Session Roadie（愛称: re:Roadie）
 
+[English](README.en.md) | 日本語
+
 **会場の裏方として、あなたの代わりに公式アプリを整え続けるエージェント。あなたは公式アプリを開くだけでいい。**
 
 re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) でセッションの計画・予約・移動時間確保・変更追従を行い、結果を**公式アプリの個人スケジュールに書き戻す**ローカルCLIエージェントです。
