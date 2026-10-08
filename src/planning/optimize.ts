@@ -1,4 +1,5 @@
 import type { PersonalTime, Session } from '../api/types.js';
+import type { FixedEvent } from '../profile/profileStore.js';
 import { sessionStartUtc, sessionEndUtc } from '../schedule/sessionTimeUtc.js';
 import { blockingPersonalTimes, personalTimeRangeUtc } from '../schedule/blockingPersonalTime.js';
 import { getTravelMinutes } from '../schedule/travelTime.js';
@@ -15,6 +16,9 @@ export interface OptimizeOptions {
   minGapMinutes?: number; // 連続するセッション間に最低限あける分数（移動時間と大きい方を要求する）
   preferredTypes?: string[]; // 優先する形式（例 "Workshop"）。本数が同じ解の中で多く含む方を選ぶ
   dateRange?: { firstDay?: string; lastDay?: string }; // 参加できる日（会場PSTの "YYYY-MM-DD"、両端を含む）
+  earliestStart?: string; // これより前に始まる回を避ける（会場現地の "HH:MM"）
+  lunchBreak?: boolean; // 選んだ回が12:00〜13:00（会場現地）にかかるとき warnings で知らせる。回は除外しない。ちょうど12:00終了・13:00開始は警告なし
+  fixedEvents?: FixedEvent[]; // 会食など動かせない予定（会場現地）。重なる回を避ける。公式アプリには書き込まない
   maxNodes?: number;
 }
 
@@ -22,7 +26,18 @@ export type Blocker =
   | { kind: 'session'; sessionId: string; title: string; requiredTravelMinutes?: number; minGapMinutes?: number }
   | { kind: 'personalTime'; personalTimeId: string; title: string }
   | { kind: 'outsideAttendance'; date: string }
-  | { kind: 'dailyLimit'; date: string; limit: number };
+  | { kind: 'dailyLimit'; date: string; limit: number }
+  | { kind: 'beforeEarliestStart'; time: string }
+  | { kind: 'fixedEvent'; date: string; title: string };
+
+/** 昼休み（12:00〜13:00）にかかるセッションの警告。除外はしない */
+export interface LunchWarning {
+  kind: 'lunchOverlap';
+  sessionId: string;
+  title: string;
+  date: string;
+  time: string;
+}
 
 export interface SelectedSession {
   sessionId: string;
@@ -45,6 +60,7 @@ export interface DroppedCandidate {
 export interface OptimizeResult {
   reserve: string[]; // schedule_plan の reserve にそのまま渡せる
   selected: SelectedSession[];
+  warnings: LunchWarning[]; // lunchBreak 指定時のみ。選んだ回のうち昼休みにかかるもの
   dropped: DroppedCandidate[];
   unknownSessionIds: string[];
   withoutTime: string[]; // 時刻情報が無く配置できない候補
@@ -107,13 +123,44 @@ function slotBlocker(a: Slot, b: Slot, considerTravelTime: boolean, minGapMinute
   };
 }
 
-function fixedBlockers(slot: Slot, blocks: FixedBlock[], dateRange?: OptimizeOptions['dateRange']): Blocker[] {
+const LUNCH_START_MINUTES = 12 * 60;
+const LUNCH_END_MINUTES = 13 * 60;
+
+const minutesOfDay = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/** 昼休み（12:00〜13:00、会場現地）にかかるセッションを日時順に返す。ちょうど12:00終了・13:00開始はかからない */
+export function lunchOverlapWarnings(sessions: Session[]): LunchWarning[] {
+  return sessions
+    .flatMap((s): LunchWarning[] => {
+      const { date, time, length } = s.sessionTime ?? {};
+      if (!date || !time) return [];
+      const start = minutesOfDay(time);
+      const end = start + (Number(length) || 0);
+      return start < LUNCH_END_MINUTES && LUNCH_START_MINUTES < end
+        ? [{ kind: 'lunchOverlap', sessionId: s.sessionId, title: s.title, date, time }]
+        : [];
+    })
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
+function fixedBlockers(slot: Slot, blocks: FixedBlock[], options: OptimizeOptions): Blocker[] {
+  const { dateRange, earliestStart, fixedEvents } = options;
   const blockers: Blocker[] = [];
   if ((dateRange?.firstDay && slot.date < dateRange.firstDay) || (dateRange?.lastDay && slot.date > dateRange.lastDay)) {
     blockers.push({ kind: 'outsideAttendance', date: slot.date });
   }
   for (const b of blocks) {
     if (slot.start < b.end && b.start < slot.end) blockers.push({ kind: 'personalTime', personalTimeId: b.pt.personalTimeId, title: b.pt.title });
+  }
+
+  // 会場現地の時刻（sessionTime.time は会場現地の "HH:MM"）。UTC換算せずに分で比べる
+  const localStart = minutesOfDay(slot.session.sessionTime?.time ?? '00:00');
+  const localEnd = localStart + (slot.end - slot.start) / 60_000;
+  if (earliestStart && localStart < minutesOfDay(earliestStart)) blockers.push({ kind: 'beforeEarliestStart', time: earliestStart });
+  for (const e of fixedEvents ?? []) {
+    if (e.date === slot.date && localStart < minutesOfDay(e.end) && minutesOfDay(e.start) < localEnd) {
+      blockers.push({ kind: 'fixedEvent', date: e.date, title: e.title });
+    }
   }
   return blockers;
 }
@@ -184,7 +231,7 @@ export function optimizeSchedule(
       requestedSessionIds: [...requestedIds],
       title: requested[0].title,
       allSlots,
-      options: allSlots.filter((slot) => fixedBlockers(slot, blocks, options.dateRange).length === 0),
+      options: allSlots.filter((slot) => fixedBlockers(slot, blocks, options).length === 0),
     });
   }
 
@@ -264,7 +311,7 @@ export function optimizeSchedule(
         date: slot.session.sessionTime?.date,
         time: slot.session.sessionTime?.time,
         blockedBy: [
-          ...fixedBlockers(slot, blocks, options.dateRange),
+          ...fixedBlockers(slot, blocks, options),
           ...((selectedPerDay.get(slot.date) ?? 0) >= maxPerDay ? [{ kind: 'dailyLimit' as const, date: slot.date, limit: maxPerDay }] : []),
           ...selectedSlots.map((c) => slotBlocker(slot, c, considerTravelTime, minGapMinutes)).filter((b): b is Blocker => Boolean(b)),
         ],
@@ -274,6 +321,7 @@ export function optimizeSchedule(
   return {
     reserve: selected.map((s) => s.sessionId),
     selected,
+    warnings: options.lunchBreak ? lunchOverlapWarnings(selectedSlots.map((s) => s.session)) : [],
     dropped,
     unknownSessionIds,
     withoutTime,

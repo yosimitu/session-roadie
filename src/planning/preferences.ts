@@ -1,5 +1,6 @@
 import type { Profile, Purpose, Stamina } from '../profile/profileStore.js';
 import type { OptimizeOptions } from './optimize.js';
+import type { CatalogQuery } from '../catalog/search.js';
 
 // オンボーディングの回答（profile.yaml）を、schedule_optimize / catalog_search の既定値に変換する。
 // 数値と形式の対応は企画書に根拠のない仮置き。実地で使ってみて調整する。
@@ -19,7 +20,10 @@ const PURPOSE_TYPES: Record<Purpose, string[]> = {
   report: ['Breakout session'],
 };
 
-export type ProfileOptimizeDefaults = Pick<OptimizeOptions, 'maxSessionsPerDay' | 'minGapMinutes' | 'preferredTypes' | 'dateRange'>;
+export type ProfileOptimizeDefaults = Pick<
+  OptimizeOptions,
+  'maxSessionsPerDay' | 'minGapMinutes' | 'preferredTypes' | 'dateRange' | 'earliestStart' | 'lunchBreak' | 'fixedEvents'
+>;
 
 export function optimizeDefaultsFromProfile(profile: Profile | undefined): ProfileOptimizeDefaults {
   if (!profile) return {};
@@ -28,6 +32,20 @@ export function optimizeDefaultsFromProfile(profile: Profile | undefined): Profi
     ...(profile.stamina ? STAMINA_LIMITS[profile.stamina] : {}),
     ...(profile.purpose ? { preferredTypes: PURPOSE_TYPES[profile.purpose] } : {}),
     ...(attendance?.firstDay || attendance?.lastDay ? { dateRange: { firstDay: attendance.firstDay, lastDay: attendance.lastDay } } : {}),
+    ...(profile.earliestStart ? { earliestStart: profile.earliestStart } : {}),
+    ...(profile.lunchBreak ? { lunchBreak: true } : {}),
+    ...(profile.fixedEvents?.length ? { fixedEvents: profile.fixedEvents } : {}),
+  };
+}
+
+export type ProfileSearchDefaults = Pick<CatalogQuery, 'maxLevel' | 'excludeSponsored'>;
+
+/** catalog_search の既定値（希望レベル・スポンサー除外）。参加日の既定値は datesWithinAttendance が別に扱う */
+export function searchDefaultsFromProfile(profile: Profile | undefined): ProfileSearchDefaults {
+  if (!profile) return {};
+  return {
+    ...(profile.maxLevel ? { maxLevel: profile.maxLevel } : {}),
+    ...(profile.excludeSponsored ? { excludeSponsored: true } : {}),
   };
 }
 

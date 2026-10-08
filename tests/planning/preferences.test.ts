@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { optimizeDefaultsFromProfile, datesWithinAttendance } from '../../src/planning/preferences.js';
+import { optimizeDefaultsFromProfile, datesWithinAttendance, searchDefaultsFromProfile } from '../../src/planning/preferences.js';
 
 const EVENT_DATES = ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04'];
 
@@ -34,5 +34,28 @@ describe('datesWithinAttendance', () => {
   it('参加日が未設定ならundefined（絞り込まない）', () => {
     expect(datesWithinAttendance(EVENT_DATES, { stamina: 'normal' })).toBeUndefined();
     expect(datesWithinAttendance(EVENT_DATES, undefined)).toBeUndefined();
+  });
+});
+
+describe('optimizeDefaultsFromProfile（開始時刻・昼休み・固定の予定）', () => {
+  it('開始時刻・昼休み・固定の予定を最適化の既定値に渡す', () => {
+    const fixedEvents = [{ date: '2026-12-01', start: '18:00', end: '20:00', title: '会食' }];
+    expect(optimizeDefaultsFromProfile({ earliestStart: '09:00', lunchBreak: true, fixedEvents }))
+      .toEqual({ earliestStart: '09:00', lunchBreak: true, fixedEvents });
+  });
+
+  it('未設定なら既定値に含めない', () => {
+    expect(optimizeDefaultsFromProfile({ stamina: 'packed' })).toEqual({});
+  });
+});
+
+describe('searchDefaultsFromProfile', () => {
+  it('希望レベルとスポンサー除外を検索の既定値に変換する', () => {
+    expect(searchDefaultsFromProfile({ maxLevel: 300, excludeSponsored: true })).toEqual({ maxLevel: 300, excludeSponsored: true });
+  });
+
+  it('未設定・プロフィール無しなら空', () => {
+    expect(searchDefaultsFromProfile({ stamina: 'normal' })).toEqual({});
+    expect(searchDefaultsFromProfile(undefined)).toEqual({});
   });
 });

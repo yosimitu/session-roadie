@@ -5,7 +5,7 @@ import { runSync, runSyncSince } from '../commands/sync.js';
 import { runAuthStatus } from '../commands/authStatus.js';
 import { runScheduleStatus } from '../commands/scheduleStatus.js';
 import { reconcile } from '../schedule/reconcile.js';
-import { executeReconcilePlan } from '../commands/applyPlan.js';
+import { executeReconcilePlan, verifyAfterApply } from '../commands/applyPlan.js';
 import { buildTravelBlockPlan, applyTravelBlocks } from '../commands/travelBlocks.js';
 import { buildNoteReminderPlan, applyNoteReminders } from '../commands/noteReminders.js';
 import { loadSnapshot } from '../catalog/store.js';
@@ -14,13 +14,14 @@ import { buildNotesSummary } from '../reporting/notesSummary.js';
 import { buildProfileFromOnboarding, buildIntentFromOnboarding, type OnboardingAnswers } from '../onboarding/wizard.js';
 import { findConflicts, findPersonalTimeConflicts } from '../commands/conflicts.js';
 import { recommendForConflict } from '../planning/alternatives.js';
-import { optimizeSchedule } from '../planning/optimize.js';
-import { optimizeDefaultsFromProfile, datesWithinAttendance } from '../planning/preferences.js';
+import { optimizeSchedule, lunchOverlapWarnings } from '../planning/optimize.js';
+import { optimizeDefaultsFromProfile, datesWithinAttendance, searchDefaultsFromProfile } from '../planning/preferences.js';
 import { searchCatalog, type CatalogQuery } from '../catalog/search.js';
 import { loadProfile } from '../profile/profileStore.js';
 import { loadIntent } from '../profile/intentStore.js';
 import { signIn, signOut } from '../auth/signIn.js';
-import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, getTokenStore, createClient } from '../runtimeContext.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from '../runtimeContext.js';
+import { runScheduleView } from '../commands/scheduleView.js';
 import type { Session } from '../api/types.js';
 
 // MCPツールのハンドラ本体。「ロジックは全部ここ」という方針（Claude Code → スキル/コマンド →
@@ -59,8 +60,8 @@ export async function authLogoutTool() {
  * 省略時は前回保存分（runSync）との比較。
  */
 export async function catalogSyncTool(eventId?: string, since?: string) {
-  const client = await createClient();
   const id = resolveEventId(eventId);
+  const client = await createClient();
   if (since) return runSyncSince(client, id, DATA_DIR, since);
   return runSync(client, id, DATA_DIR);
 }
@@ -70,13 +71,26 @@ export async function scheduleGetTool(eventId?: string) {
   return runScheduleStatus(client, resolveEventId(eventId));
 }
 
+/**
+ * 差分に加えて、profile.yaml で昼休みを空けたい設定のとき、これから予約するセッションが
+ * 12:00〜13:00 にかかる場合の warnings を返す（予約は止めない。確認はユーザーが行う）。
+ * スナップショットに無いIDは判定できないので警告に含めない。
+ */
 export async function schedulePlanTool(reserve: string[] | undefined, favorite: string[] | undefined, eventId?: string) {
+  const id = resolveEventId(eventId);
   const client = await createClient();
-  const actual = await runScheduleStatus(client, resolveEventId(eventId));
-  return reconcile({ reserve, favorite }, actual);
+  const actual = await runScheduleStatus(client, id);
+  const plan = reconcile({ reserve, favorite }, actual);
+  if (!loadProfile(PROFILE_PATH)?.lunchBreak) return { ...plan, warnings: [] };
+  const snapshotById = new Map((loadSnapshot(id, DATA_DIR) ?? []).map((s) => [s.sessionId, s]));
+  const toReserve = plan.toReserve.map((sid) => snapshotById.get(sid)).filter((s): s is Session => Boolean(s));
+  return { ...plan, warnings: lunchOverlapWarnings(toReserve) };
 }
 
-/** 企画書 §5.9: 実行後に必ずGetScheduleで再照合し、まだ差分が残っていないかを一緒に返す */
+/**
+ * 企画書 §5.9: 実行後に必ずGetScheduleで再照合し、まだ差分が残っていないかを一緒に返す。
+ * 再照合に失敗した場合は remainingPlan の代わりに reconcileError を返す（実行結果は失わない）。
+ */
 export async function scheduleApplyTool(reserve: string[] | undefined, favorite: string[] | undefined, eventId?: string) {
   const client = await createClient();
   const id = resolveEventId(eventId);
@@ -84,9 +98,20 @@ export async function scheduleApplyTool(reserve: string[] | undefined, favorite:
   const before = await runScheduleStatus(client, id);
   const plan = reconcile(desired, before);
   const result = await executeReconcilePlan(client, id, plan);
-  const after = await runScheduleStatus(client, id);
-  const remainingPlan = reconcile(desired, after);
-  return { plan, result, remainingPlan };
+  const verify = await verifyAfterApply(client, id, desired);
+  return { plan, result, ...verify };
+}
+
+/**
+ * 現在のスケジュールとカタログ全件を、タブ付きの参照専用HTML（data/schedule.html）に書き出す。予定は変更しない。
+ * 出力先は固定（LLMが任意のパスへ書き込めないようにする）。date は会場PSTの "YYYY-MM-DD"。
+ */
+export async function scheduleViewTool(date?: string, eventId?: string, newSince?: string) {
+  const id = resolveEventId(eventId);
+  const snapshot = requireSnapshot(id);
+  return runScheduleView(await createClient(), id, {
+    snapshot, outPath: SCHEDULE_HTML_PATH, profile: loadProfile(PROFILE_PATH), date, dataDir: DATA_DIR, newSince,
+  });
 }
 
 export async function conflictsGetTool(eventId?: string) {
@@ -121,14 +146,24 @@ export function profileGetTool() {
   };
 }
 
-/** dates を指定しなければ、profile.yaml の参加日の範囲に絞る（useProfile: false で無効化） */
+/**
+ * 引数で指定しなかった条件は profile.yaml の値で補う（useProfile: false で無効化）。
+ * dates ← 参加日の範囲、maxLevel ← 希望レベル（levels を指定したときは補わない）、excludeSponsored ← スポンサー除外。
+ */
 export function catalogSearchTool(query: CatalogQuery & { useProfile?: boolean }, eventId?: string) {
   const { useProfile = true, ...rest } = query;
   const snapshot = requireSnapshot(resolveEventId(eventId));
   const eventDates = [...new Set(snapshot.map((s) => s.sessionTime?.date).filter((d): d is string => Boolean(d)))].sort();
-  const profileDates = useProfile && !rest.dates ? datesWithinAttendance(eventDates, loadProfile(PROFILE_PATH)) : undefined;
-  const result = searchCatalog(snapshot, { ...rest, ...(profileDates ? { dates: profileDates } : {}) });
-  return { ...result, appliedProfileDefaults: profileDates ? { dates: profileDates } : {} };
+  const profile = useProfile ? loadProfile(PROFILE_PATH) : undefined;
+  const profileDates = !rest.dates ? datesWithinAttendance(eventDates, profile) : undefined;
+  const searchDefaults = searchDefaultsFromProfile(profile);
+  const applied = {
+    ...(profileDates ? { dates: profileDates } : {}),
+    ...(rest.maxLevel === undefined && !rest.levels?.length && searchDefaults.maxLevel ? { maxLevel: searchDefaults.maxLevel } : {}),
+    ...(rest.excludeSponsored === undefined && searchDefaults.excludeSponsored ? { excludeSponsored: true } : {}),
+  };
+  const result = searchCatalog(snapshot, { ...rest, ...applied });
+  return { ...result, appliedProfileDefaults: applied };
 }
 
 export interface ScheduleOptimizeToolOptions {
@@ -141,11 +176,13 @@ export interface ScheduleOptimizeToolOptions {
   preferredTypes?: string[];
   firstDay?: string;
   lastDay?: string;
+  earliestStart?: string;
+  lunchBreak?: boolean;
 }
 
 /**
  * 候補から重ならない最大の組み合わせを選ぶ（実行はしない）。結果の reserve を schedule_plan に渡して使う。
- * profile.yaml の体力・目的・参加日を既定値として使い、引数で明示した値はそれより優先する。
+ * profile.yaml の体力・目的・参加日・開始時刻・昼休み・固定の予定を既定値として使い、引数で明示した値はそれより優先する。
  */
 export async function scheduleOptimizeTool(candidates: string[], options: ScheduleOptimizeToolOptions = {}) {
   const id = resolveEventId(options.eventId);
@@ -164,6 +201,8 @@ export async function scheduleOptimizeTool(candidates: string[], options: Schedu
       maxSessionsPerDay: options.maxSessionsPerDay,
       minGapMinutes: options.minGapMinutes,
       preferredTypes: options.preferredTypes,
+      earliestStart: options.earliestStart,
+      lunchBreak: options.lunchBreak,
     }),
     ...explicitDateRange,
     considerTravelTime: options.considerTravelTime ?? true,

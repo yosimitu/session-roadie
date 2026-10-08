@@ -10,6 +10,8 @@ export interface CatalogQuery {
   topics?: string[]; // いずれかを含む（OR、完全一致・大文字小文字無視）
   types?: string[]; // 例 "Workshop"（OR、完全一致・大文字小文字無視）
   levels?: string[]; // 例 "300"（先頭一致、OR）
+  maxLevel?: number; // 例 300 なら 400・500 を除く。レベルが数値で読めないセッション（"No Level" や空）は残す
+  excludeSponsored?: boolean; // スポンサーセッション（略称 -S / -S-R1、またはタイトルの "(sponsored by"）を除く
   dates?: string[]; // "YYYY-MM-DD"（OR）
   venues?: string[]; // 部分一致（OR）
   services?: string[]; // 部分一致（OR）
@@ -52,6 +54,15 @@ function matchesAnyPartial(values: (string | undefined)[], wanted?: string[]): b
   return values.some((v) => v !== undefined && wanted.some((w) => v.toLowerCase().includes(w)));
 }
 
+export function isSponsored(s: Session): boolean {
+  return /-S(-R\d*)?$/i.test(s.abbreviation ?? '') || /\(sponsored by/i.test(s.title);
+}
+
+function exceedsMaxLevel(s: Session, maxLevel: number): boolean {
+  const n = Number(s.level?.match(/^\d{3}/)?.[0]);
+  return Number.isFinite(n) && n > maxLevel;
+}
+
 export function searchCatalog(sessions: Session[], query: CatalogQuery): CatalogSearchResult {
   const keywords = lower(query.keywords);
   const topics = lower(query.topics);
@@ -68,6 +79,8 @@ export function searchCatalog(sessions: Session[], query: CatalogQuery): Catalog
     if (topics?.length && !(s.topics ?? []).some((t) => topics.includes(t.toLowerCase()))) return false;
     if (!matchesAnyExact(s.type, types)) return false;
     if (query.levels?.length && !query.levels.some((l) => s.level?.startsWith(l))) return false;
+    if (query.maxLevel !== undefined && exceedsMaxLevel(s, query.maxLevel)) return false;
+    if (query.excludeSponsored && isSponsored(s)) return false;
     if (query.dates?.length && !query.dates.includes(s.sessionTime?.date ?? '')) return false;
     if (!matchesAnyPartial([s.venue], venues)) return false;
     if (!matchesAnyPartial(s.services ?? [], services)) return false;

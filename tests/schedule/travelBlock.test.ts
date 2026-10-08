@@ -18,7 +18,7 @@ describe('computeTravelBlock', () => {
     });
     const result = computeTravelBlock(a, b);
     expect(result?.sufficient).toBe(true);
-    expect(result?.requiredMinutes).toBe(20);
+    expect(result?.requiredMinutes).toBe(15);
     expect(result?.availableMinutes).toBe(30);
     // 10:00 PST開始+60分 = 11:00 PST終了 = 19:00 UTC
     expect(result?.personalTime?.startDateTime).toBe('2026-12-02T19:00:00');

@@ -1,31 +1,35 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface, type Interface } from 'node:readline';
 import { stringify } from 'yaml';
-import { ApiError } from './api/client.js';
+import { toRoadieError, formatRoadieErrorForCli } from './errors.js';
 import { signIn, signOut } from './auth/signIn.js';
 import { runSync, runSyncSince } from './commands/sync.js';
+import type { CatalogDiff } from './catalog/diff.js';
 import { runAuthStatus } from './commands/authStatus.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
 import { loadDesiredState } from './schedule/desiredStateStore.js';
 import { reconcile } from './schedule/reconcile.js';
-import { executeReconcilePlan } from './commands/applyPlan.js';
+import { executeReconcilePlan, verifyAfterApply, hasApplyFailure, type StepResult, type ItemResult } from './commands/applyPlan.js';
 import { buildTravelBlockPlan, applyTravelBlocks } from './commands/travelBlocks.js';
 import { loadSnapshot } from './catalog/store.js';
 import { loadNotes, saveNotes } from './profile/notesStore.js';
 import { buildNoteReminderPlan, applyNoteReminders } from './commands/noteReminders.js';
 import { buildNotesSummary } from './reporting/notesSummary.js';
 import {
-  buildProfileFromOnboarding, buildIntentFromOnboarding, ONBOARDING_EVENT_DATES, INTEREST_OPTIONS,
+  buildProfileFromOnboarding, buildIntentFromOnboarding, parseFixedEvent, ONBOARDING_EVENT_DATES, INTEREST_OPTIONS,
   type OnboardingRole, type OnboardingPurpose, type OnboardingStamina, type OnboardingInterest,
 } from './onboarding/wizard.js';
+import type { FixedEvent } from './profile/profileStore.js';
 import { findConflicts, findPersonalTimeConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
-import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, getTokenStore, createClient } from './runtimeContext.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
+import { runScheduleView } from './commands/scheduleView.js';
+import { loadProfile } from './profile/profileStore.js';
 import { startMcpServer } from './mcp/server.js';
-import type { BulkResult, Schedule, Session } from './api/types.js';
+import type { BulkResult, Session } from './api/types.js';
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
 // パイプ入力（テスト・自動化実行）では readline が全行を同じティックで同期的に 'line' イベント
@@ -85,10 +89,53 @@ async function askMultiChoice<T extends string>(question: string, choices: { val
   return [...new Set(picked)];
 }
 
+/** 会食・社内会議など動かせない予定を、空行が来るまで1行ずつ受け取る。形式が違う行は理由を表示して聞き直す */
+async function askFixedEvents(): Promise<FixedEvent[]> {
+  console.log('動かせない予定（会食・社内会議など）は？ 公式アプリには書き込まず、予定の組み立てで避けるだけです');
+  const events: FixedEvent[] = [];
+  for (;;) {
+    const line = (await askLine('  例「12/1 18:00-20:00 会食」（なければそのままEnter）: ')).trim();
+    if (!line) return events;
+    try {
+      events.push(parseFixedEvent(line));
+    } catch (err) {
+      console.log(`  ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 function printBulkResult(label: string, result: BulkResult): void {
   console.log(`${label}: 成功 ${result.successful.length}件 / 失敗 ${result.failed.length}件`);
   for (const id of result.successful) console.log(`  ✓ ${id}`);
   for (const f of result.failed) console.log(`  ✕ ${f.sessionId}（${f.code}）`);
+}
+
+function printFailedStep(label: string, step: Extract<StepResult<unknown>, { ok: false }>): void {
+  if ('skipped' in step) {
+    console.log(`${label}: 認証切れのため未実行`);
+    return;
+  }
+  console.log(`${label}: 失敗`);
+  for (const line of formatRoadieErrorForCli(step.error)) console.log(`  ${line}`);
+}
+
+function printBulkStep(label: string, step: StepResult<BulkResult>): void {
+  if (step.ok) printBulkResult(label, step.value);
+  else printFailedStep(label, step);
+}
+
+function printItemStep(label: string, step: StepResult<ItemResult[]>): void {
+  if (!step.ok) {
+    printFailedStep(label, step);
+    return;
+  }
+  for (const item of step.value) {
+    if ('error' in item) {
+      console.log(`${label} ${item.sessionId}: 失敗`);
+      for (const line of formatRoadieErrorForCli(item.error)) console.log(`  ${line}`);
+    } else if ('skipped' in item) console.log(`${label} ${item.sessionId}: 未実行`);
+    else console.log(`${label} ${item.sessionId}: ${item.status}`);
+  }
 }
 
 const program = new Command();
@@ -130,8 +177,37 @@ program
         '関心のあるテーマは？（任意・複数可）',
         (Object.keys(INTEREST_OPTIONS) as OnboardingInterest[]).map((value) => ({ value, label: INTEREST_OPTIONS[value].label })),
       );
+      // 2つ以上選んだときだけ、優先順位を聞く（選んだ番号の並びがそのまま順位。省略はEnter）
+      const themePriority = interests.length >= 2
+        ? await askMultiChoice<OnboardingInterest>(
+          '選んだテーマの優先順位は？（任意。1位から順に番号をカンマ区切りで。省略するとお気に入りの傾向から決めます）',
+          interests.map((value) => ({ value, label: INTEREST_OPTIONS[value].label })),
+        )
+        : [];
 
-      const answers = { role, purpose, stamina, firstDay, lastDay, interests };
+      // 以下は任意。先頭の選択肢（制限なし・含める・空けない）が既定値
+      const maxLevelChoice = await askChoice<'' | '200' | '300'>('希望するレベルは？', [
+        { value: '', label: '制限なし（400以上も可）' },
+        { value: '200', label: '200まで（入門・基礎）' },
+        { value: '300', label: '300まで（実践）' },
+      ]);
+      const maxLevel = maxLevelChoice ? (Number(maxLevelChoice) as 200 | 300) : undefined;
+      const excludeSponsored = (await askChoice<'include' | 'exclude'>('スポンサーセッション（企業提供）は？', [
+        { value: 'include', label: '含める' },
+        { value: 'exclude', label: '避ける' },
+      ])) === 'exclude';
+      const earliestStart = (await askChoice<'' | '09:00' | '10:00'>('これより前に始まるセッションは避けたい（時差対策）', [
+        { value: '', label: '制限なし' },
+        { value: '09:00', label: '9:00より前は避ける' },
+        { value: '10:00', label: '10:00より前は避ける' },
+      ])) || undefined;
+      const lunchBreak = (await askChoice<'no' | 'yes'>('予約するセッションが昼（12:00〜13:00）にかかるとき、警告しますか？（除外はしません）', [
+        { value: 'no', label: '警告しない' },
+        { value: 'yes', label: '警告する' },
+      ])) === 'yes';
+      const fixedEvents = await askFixedEvents();
+
+      const answers = { role, purpose, stamina, firstDay, lastDay, interests, themePriority, maxLevel, excludeSponsored, earliestStart, lunchBreak, fixedEvents };
       const profile = buildProfileFromOnboarding(answers);
       const intent = buildIntentFromOnboarding(answers);
 
@@ -148,20 +224,23 @@ program
     }
   });
 
+function printCatalogDiff(diff: CatalogDiff): void {
+  console.log(`新規: ${diff.added.length}件 / 変更: ${diff.changed.length}件 / キャンセル: ${diff.removed.length}件`);
+  for (const s of diff.added) console.log(`  + ${s.sessionId} ${s.title}`);
+  for (const c of diff.changed) console.log(`  * ${c.sessionId} ${c.after.title} (${c.changedFields.join(', ')})`);
+  for (const s of diff.removed) console.log(`  - ${s.sessionId} ${s.title}`);
+}
+
 program
   .command('sync')
   .description('カタログ全件を取得し、前回のローカルスナップショットとの差分を表示する')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--since <date>', '指定日(YYYY-MM-DD)のスナップショットと比較する（例: 1週間前の新着を確認）。省略時は前回保存分と比較')
   .action(async (options: { eventId: string; since?: string }) => {
-    const client = await createClient();
     const diff = options.since
-      ? (await runSyncSince(client, options.eventId, DATA_DIR, options.since)).diff
-      : await runSync(client, options.eventId, DATA_DIR);
-    console.log(`新規: ${diff.added.length}件 / 変更: ${diff.changed.length}件 / キャンセル: ${diff.removed.length}件`);
-    for (const s of diff.added) console.log(`  + ${s.sessionId} ${s.title}`);
-    for (const c of diff.changed) console.log(`  * ${c.sessionId} ${c.after.title} (${c.changedFields.join(', ')})`);
-    for (const s of diff.removed) console.log(`  - ${s.sessionId} ${s.title}`);
+      ? (await runSyncSince(await createClient(), options.eventId, DATA_DIR, options.since)).diff
+      : await runSync(await createClient(), options.eventId, DATA_DIR);
+    printCatalogDiff(diff);
   });
 
 program
@@ -174,6 +253,23 @@ program
     for (const id of schedule.reserved) console.log(`  予約: ${id}`);
     for (const id of schedule.favorites) console.log(`  お気に入り: ${id}`);
     for (const pt of schedule.personalTime) console.log(`  個人予定: ${pt.startDateTime} ${pt.title}`);
+  });
+
+program
+  .command('view')
+  .description('現在のスケジュールとカタログ全件を、タブ付きの1枚のHTML（予定・セッション一覧・全体像・メモ候補）に書き出す（参照専用。予定は変更しない）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-d, --date <date>', '「予定」タブをこの日（会場PSTの YYYY-MM-DD）だけにする。省略時は全日')
+  .option('--new-since <date>', '「新着」の比較元にするスナップショットの日付（YYYY-MM-DD）。省略時は今日より前で最新の日付')
+  .option('-o, --out <file>', '出力先', SCHEDULE_HTML_PATH)
+  .action(async (options: { eventId: string; date?: string; newSince?: string; out: string }) => {
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR);
+    if (!snapshot) throw new Error(`ローカルスナップショット（${options.eventId}）がありません。先に sync を実行してください`);
+    const result = await runScheduleView(await createClient(), options.eventId, {
+      snapshot, outPath: options.out, profile: loadProfile(PROFILE_PATH), date: options.date,
+      dataDir: DATA_DIR, newSince: options.newSince,
+    });
+    console.log(`保存しました: ${result.path}（予約 ${result.reserved}件 / お気に入り ${result.favorites}件 / 個人予定 ${result.personalTime}件）`);
   });
 
 program
@@ -206,18 +302,25 @@ program
       }
 
       const result = await executeReconcilePlan(client, options.eventId, plan);
-      printBulkResult('予約', result.reserve);
-      printBulkResult('お気に入り', result.favorite);
-      for (const c of result.cancelReservation) console.log(`予約解除 ${c.sessionId}: ${c.status}`);
-      for (const u of result.unfavorite) console.log(`お気に入り解除 ${u.sessionId}: ${u.status}`);
+      printBulkStep('予約', result.reserve);
+      printBulkStep('お気に入り', result.favorite);
+      printItemStep('予約解除', result.cancelReservation);
+      printItemStep('お気に入り解除', result.unfavorite);
 
       // 企画書 §5.9: 実行後に必ずGetScheduleで実際の状態を取り直し、意図と突き合わせる
-      const after: Schedule = await runScheduleStatus(client, options.eventId);
-      const remaining = reconcile(desired, after);
-      const stillHasChanges = [remaining.toReserve, remaining.toCancelReservation, remaining.toFavorite, remaining.toUnfavorite].some((l) => l.length > 0);
-      console.log(stillHasChanges
-        ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
-        : '現在の状態は意図と一致しています。');
+      const verify = await verifyAfterApply(client, options.eventId, desired);
+      // 例外は StepResult に変換されて最上位 catch に届かないため、ここで終了コードを立てる
+      if (hasApplyFailure(result) || 'reconcileError' in verify) process.exitCode = 1;
+      if ('reconcileError' in verify) {
+        console.log('実行後の状態を確認できませんでした。');
+        for (const line of formatRoadieErrorForCli(verify.reconcileError)) console.log(`  ${line}`);
+      } else {
+        const remaining = verify.remainingPlan;
+        const stillHasChanges = [remaining.toReserve, remaining.toCancelReservation, remaining.toFavorite, remaining.toUnfavorite].some((l) => l.length > 0);
+        console.log(stillHasChanges
+          ? '一部が意図と一致していません。再度 apply を実行してください（部分失敗は自動では再試行しません）。'
+          : '現在の状態は意図と一致しています。');
+      }
     } finally {
       closePrompter();
     }
@@ -403,13 +506,7 @@ program
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
-  if (err instanceof ApiError) {
-    console.error(`APIエラー（HTTP ${err.status}）: ${JSON.stringify(err.body)}`);
-  } else if (err instanceof Error) {
-    console.error(`エラー: ${err.message}`);
-  } else {
-    console.error('不明なエラーが発生しました:', err);
-  }
+  for (const line of formatRoadieErrorForCli(toRoadieError(err))) console.error(line);
   closePrompter();
   process.exitCode = 1;
 });

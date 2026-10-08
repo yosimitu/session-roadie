@@ -13,7 +13,7 @@ function assertNotEmptyOverwrite(eventId: string, dataDir: string, after: Sessio
   const latest = loadSnapshot(eventId, dataDir);
   if (latest && latest.length > 0) {
     throw new Error(
-      `カタログの取得結果が0件でした。保存済みのスナップショット（${latest.length}件）を空で上書きしないため、保存せず中断します。APIの状態を確認して、時間をおいて再実行してください。`,
+      `カタログの取得結果が0件でした。保存済みのスナップショット（${latest.length}件）を空で上書きしないため、保存せず中断します。取得元の状態を確認して、時間をおいて再実行してください。`,
     );
   }
 }

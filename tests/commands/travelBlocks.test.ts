@@ -37,7 +37,7 @@ describe('planTravelBlocks', () => {
   it('3件以上なら隣接ペアすべてについて計算する', () => {
     const a = session({ sessionId: 'a', venue: 'Venetian', sessionTime: { date: '2026-12-02', time: '10:00', length: '60' } });
     const b = session({ sessionId: 'b', venue: 'Wynn', sessionTime: { date: '2026-12-02', time: '11:30', length: '60' } });
-    const c = session({ sessionId: 'c', venue: 'Caesars', sessionTime: { date: '2026-12-02', time: '13:00', length: '60' } });
+    const c = session({ sessionId: 'c', venue: 'Caesars Palace', sessionTime: { date: '2026-12-02', time: '13:00', length: '60' } });
 
     const blocks = planTravelBlocks([a, b, c]);
 

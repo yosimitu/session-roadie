@@ -3,8 +3,13 @@ import { QuotaLimiter, type OperationName } from './quotas.js';
 const BASE_URL = 'https://api.awsevents.com';
 
 export class ApiError extends Error {
-  constructor(public status: number, public body: unknown, public retryAfterSeconds?: number) {
-    super(`API error ${status}`);
+  constructor(
+    public status: number,
+    public body: unknown,
+    public retryAfterSeconds?: number,
+    public operation?: OperationName,
+  ) {
+    super(operation ? `API error ${status} (${operation})` : `API error ${status}`);
   }
 }
 
@@ -39,14 +44,17 @@ export class ApiClient {
     return this.quotaLimiter.withRetry(fn);
   }
 
+  /** 失敗レスポンスをApiErrorにする。429はQuotaLimiterがRetry-Afterを見てリトライできるよう秒数を持たせる */
+  private async failure(res: Response, operation: OperationName): Promise<ApiError> {
+    if (res.status === 429) return new ApiError(429, undefined, parseRetryAfterSeconds(res), operation);
+    const body = await res.json().catch(() => undefined);
+    return new ApiError(res.status, body, undefined, operation);
+  }
+
   async get<T>(path: string, operation: OperationName): Promise<T> {
     return this.withQuota(async () => {
       const res = await fetch(`${BASE_URL}${path}`, { headers: this.headers() });
-      if (res.status === 429) throw new ApiError(429, undefined, parseRetryAfterSeconds(res));
-      if (!res.ok) {
-        const body = await res.json().catch(() => undefined);
-        throw new ApiError(res.status, body);
-      }
+      if (!res.ok) throw await this.failure(res, operation);
       return (await res.json()) as T;
     });
   }
@@ -62,11 +70,7 @@ export class ApiClient {
         headers: { ...this.headers(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.status === 429) throw new ApiError(429, undefined, parseRetryAfterSeconds(res));
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => undefined);
-        throw new ApiError(res.status, errBody);
-      }
+      if (!res.ok) throw await this.failure(res, operation);
       if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
     });
@@ -79,11 +83,7 @@ export class ApiClient {
         headers: { ...this.headers(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.status === 429) throw new ApiError(429, undefined, parseRetryAfterSeconds(res));
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => undefined);
-        throw new ApiError(res.status, errBody);
-      }
+      if (!res.ok) throw await this.failure(res, operation);
       if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
     });
@@ -94,11 +94,7 @@ export class ApiClient {
     return this.withQuota(async () => {
       const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: this.headers() });
       if (res.status === 404) return 'alreadyGone';
-      if (res.status === 429) throw new ApiError(429, undefined, parseRetryAfterSeconds(res));
-      if (!res.ok) {
-        const body = await res.json().catch(() => undefined);
-        throw new ApiError(res.status, body);
-      }
+      if (!res.ok) throw await this.failure(res, operation);
       return 'deleted';
     });
   }

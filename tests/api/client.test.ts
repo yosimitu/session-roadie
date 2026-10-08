@@ -66,4 +66,47 @@ describe('ApiClient', () => {
 
     expect(result).toBeUndefined();
   });
+
+  it('失敗時のApiErrorにstatus・operation・bodyが載り、messageにoperationが含まれる', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'not open' }), { status: 409 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new ApiClient({ getAccessToken: () => 'tok123' });
+
+    const err = await client
+      .postJson('/v1/events/reinvent2026/reservations', { sessionIds: ['s1'] }, 'ReserveSessions')
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.status).toBe(409);
+    expect(apiErr.operation).toBe('ReserveSessions');
+    expect(apiErr.body).toEqual({ message: 'not open' });
+    expect(apiErr.message).toBe('API error 409 (ReserveSessions)');
+  });
+
+  it('429がリトライ上限まで続いたら、operation付きのApiError(429)を投げる', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '0' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new ApiClient({ getAccessToken: () => undefined });
+
+    const err = await client.get('/v1/events/reinvent2026/schedule', 'GetSchedule').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(429);
+    expect((err as ApiError).operation).toBe('GetSchedule');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('deleteExpectNotFoundOkの404以外の失敗もoperation付きのApiErrorになる', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'boom' }), { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new ApiClient({ getAccessToken: () => 'tok123' });
+
+    const err = await client
+      .deleteExpectNotFoundOk('/v1/events/reinvent2026/reservations/s1', 'CancelReservation')
+      .catch((e: unknown) => e);
+
+    expect((err as ApiError).operation).toBe('CancelReservation');
+    expect((err as ApiError).body).toEqual({ message: 'boom' });
+  });
 });

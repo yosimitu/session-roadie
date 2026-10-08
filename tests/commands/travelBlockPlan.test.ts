@@ -36,7 +36,7 @@ describe('buildTravelBlockPlan', () => {
       personalTime: [{
         personalTimeId: 'pt-1',
         startDateTime: '2026-12-02T19:00:00', endDateTime: '2026-12-02T19:30:00',
-        title: 'Venetian → Wynn 移動', description: '20分の移動時間を確保（概算値・要検証）',
+        title: 'Venetian → Wynn 移動', description: '15分の移動時間を確保（概算値・要検証）',
       }],
     };
 

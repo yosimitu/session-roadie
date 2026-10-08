@@ -56,4 +56,29 @@ describe('searchCatalog', () => {
     expect(page.totalCount).toBe(3);
     expect(page.items.map((i) => i.sessionId)).toEqual(['b']);
   });
+
+  describe('maxLevel / excludeSponsored', () => {
+    const extra: Session[] = [
+      { sessionId: 'l1', abbreviation: 'AIM118-S', title: 'Sponsored intro', level: '100 – Foundational', sessionTime: { date: '2026-12-01', time: '10:00', length: '60' } },
+      { sessionId: 'l2', abbreviation: 'GHJ308-S-R1', title: 'Sponsored jam', level: '300 – Advanced', sessionTime: { date: '2026-12-01', time: '11:00', length: '60' } },
+      { sessionId: 'l3', abbreviation: 'COM001', title: 'Partner talk (sponsored by Acme)', level: '200 – Intermediate', sessionTime: { date: '2026-12-01', time: '12:00', length: '60' } },
+      { sessionId: 'l4', abbreviation: 'INV001-R', title: 'No level', level: 'No Level', sessionTime: { date: '2026-12-01', time: '13:00', length: '60' } },
+      { sessionId: 'l5', abbreviation: 'BIZ333', title: 'Empty level', level: '', sessionTime: { date: '2026-12-01', time: '14:00', length: '60' } },
+      { sessionId: 'l6', abbreviation: 'SEC500', title: 'Level 500', level: '500 – Distinguished', sessionTime: { date: '2026-12-01', time: '15:00', length: '60' } },
+      { sessionId: 'l7', abbreviation: 'SEC201', title: 'Plain', level: '200 – Intermediate', sessionTime: { date: '2026-12-01', time: '16:00', length: '60' } },
+    ];
+    const ids = (q: Parameters<typeof searchCatalog>[1]) => searchCatalog(extra, q).items.map((i) => i.sessionId);
+
+    it('maxLevel を超えるレベルを除き、レベル不明のセッションは残す', () => {
+      expect(ids({ maxLevel: 200 })).toEqual(['l1', 'l3', 'l4', 'l5', 'l7']);
+    });
+
+    it('excludeSponsored は略称の -S（再演 -S-R1 を含む）とタイトルの "(sponsored by" を除く', () => {
+      expect(ids({ excludeSponsored: true })).toEqual(['l4', 'l5', 'l6', 'l7']);
+    });
+
+    it('指定しなければ絞り込まない', () => {
+      expect(ids({})).toHaveLength(7);
+    });
+  });
 });

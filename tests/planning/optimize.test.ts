@@ -60,7 +60,7 @@ describe('optimizeSchedule', () => {
   });
 
   it('別会場への移動が間に合わない連続セッションは両立させない', () => {
-    const a = session('a', 'AIM101', '2026-12-01', '11:30', '60', 'Caesars');
+    const a = session('a', 'AIM101', '2026-12-01', '11:30', '60', 'Caesars Palace');
     const b = session('b', 'AIM102', '2026-12-01', '12:30', '60', 'MGM');
     const withTravel = optimizeSchedule(['a', 'b'], [a, b], []);
     expect(withTravel.reserve).toHaveLength(1);
@@ -139,5 +139,62 @@ describe('optimizeSchedule', () => {
     const sessions = Array.from({ length: 6 }, (_, i) => session(`s${i}`, `AIM10${i}`, '2026-12-01', '09:00'));
     const result = optimizeSchedule(sessions.map((s) => s.sessionId), sessions, [], { maxNodes: 3 });
     expect(result.optimal).toBe(false);
+  });
+
+  describe('開始時刻・昼休み・固定の予定（会場現地時刻）', () => {
+    const early = session('early', 'AIM101', '2026-12-01', '08:00');
+    const morning = session('morning', 'AIM102', '2026-12-01', '10:00');
+    const lunch = session('lunch', 'AIM103', '2026-12-01', '12:30');
+    const lunchStart = session('lunchStart', 'AIM104', '2026-12-01', '11:30'); // 11:30-12:30 が昼休みと重なる
+    const evening = session('evening', 'AIM105', '2026-12-01', '18:30');
+    const all = [early, morning, lunch, lunchStart, evening];
+    const ids = all.map((s) => s.sessionId);
+
+    it('earliestStart より前に始まる回は選ばず、理由つきで落とす', () => {
+      const result = optimizeSchedule(ids, all, [], { earliestStart: '09:00' });
+      expect(result.reserve).not.toContain('early');
+      const dropped = result.dropped.find((d) => d.requestedSessionIds.includes('early'));
+      expect(dropped?.options[0].blockedBy).toEqual([{ kind: 'beforeEarliestStart', time: '09:00' }]);
+    });
+
+    it('lunchBreak は 12:00-13:00 と重なる回を除外せず、選んだ回に警告を付ける（境界の12:00終了・13:00開始は警告なし）', () => {
+      // 互いに重ならないよう日付を分ける
+      const overlapsEnd = session('overlapsEnd', 'AIM104', '2026-12-01', '11:30'); // 11:30-12:30
+      const overlapsStart = session('overlapsStart', 'AIM103', '2026-12-02', '12:30'); // 12:30-13:30
+      const edgeEnd = session('edgeEnd', 'AIM106', '2026-12-03', '11:00'); // 11:00-12:00 ちょうど
+      const edgeStart = session('edgeStart', 'AIM107', '2026-12-04', '13:00'); // 13:00-14:00 ちょうど
+      const four = [overlapsEnd, overlapsStart, edgeEnd, edgeStart];
+      const result = optimizeSchedule(four.map((s) => s.sessionId), four, [], { lunchBreak: true });
+      expect(result.reserve.sort()).toEqual(['edgeEnd', 'edgeStart', 'overlapsEnd', 'overlapsStart']);
+      expect(result.warnings).toEqual([
+        { kind: 'lunchOverlap', sessionId: 'overlapsEnd', title: 'T-overlapsEnd', date: '2026-12-01', time: '11:30' },
+        { kind: 'lunchOverlap', sessionId: 'overlapsStart', title: 'T-overlapsStart', date: '2026-12-02', time: '12:30' },
+      ]);
+    });
+
+    it('lunchBreak を指定しなければ警告は出ない', () => {
+      expect(optimizeSchedule(['lunch'], [lunch], []).warnings).toEqual([]);
+    });
+
+    it('fixedEvents と重なる回は選ばず、別の日の同名予定は無視する', () => {
+      const dinner = { date: '2026-12-01', start: '18:00', end: '20:00', title: '会食' };
+      const result = optimizeSchedule(ids, all, [], { fixedEvents: [dinner, { ...dinner, date: '2026-12-02' }] });
+      expect(result.reserve).not.toContain('evening');
+      expect(result.reserve).toContain('morning');
+      const dropped = result.dropped.find((d) => d.requestedSessionIds.includes('evening'));
+      expect(dropped?.options[0].blockedBy).toEqual([{ kind: 'fixedEvent', date: '2026-12-01', title: '会食' }]);
+    });
+
+    it('再演があれば制約に当たらない回へ差し替える', () => {
+      const a = session('a', 'DAT410-R', '2026-12-01', '08:00');
+      const a1 = session('a1', 'DAT410-R1', '2026-12-02', '10:00');
+      const result = optimizeSchedule(['a'], [a, a1], [], { earliestStart: '09:00' });
+      expect(result.reserve).toEqual(['a1']);
+      expect(result.selected[0].substitutedFor).toEqual(['a']);
+    });
+
+    it('未指定なら従来どおり（制約なし）', () => {
+      expect(optimizeSchedule(ids, all, []).reserve.sort()).toEqual([...ids].sort());
+    });
   });
 });

@@ -10,6 +10,8 @@ export const DATA_DIR = join(process.cwd(), 'data');
 export const NOTES_PATH = join(DATA_DIR, 'notes.yaml');
 export const PROFILE_PATH = join(DATA_DIR, 'profile.yaml');
 export const INTENT_PATH = join(DATA_DIR, 'intent.txt');
+// 参照専用の予定表（カタログ由来の文字列を含むので data/ 配下に置き、コミットしない）
+export const SCHEDULE_HTML_PATH = join(DATA_DIR, 'schedule.html');
 
 export function getTokenStore(): TokenStore {
   return new TokenStore(join(DATA_DIR, 'token.json'));
