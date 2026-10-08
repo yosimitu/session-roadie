@@ -20,13 +20,19 @@ re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API]
 ## 必要環境
 
 - Node.js 22 以上
+- Git
+- macOS / Windows
 
 ## セットアップ
 
 ```bash
+git clone https://github.com/yosimitu/session-roadie.git
+cd session-roadie
 npm install
 npm run build
 ```
+
+以降のコマンドは、リポジトリのルート（`session-roadie`）で実行します。`data/` は実行時のカレントディレクトリ基準で作られるためです。
 
 ## 使い方
 
