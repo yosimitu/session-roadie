@@ -42,6 +42,7 @@ export function formatWatchEvents(events: WatchEvent[]): string[] {
 /** 1回の確認の結果を、表示する行にする。stamp は "HH:MM:SS" */
 export function formatWatchReport(result: WatchResult, stamp: string): string[] {
   if (result.status === 'empty') return [`[${stamp}] カタログが空です（ListSessions が0件）。状態は更新しません。`];
+  if (result.status === 'shrunk') return [`[${stamp}] 取得件数が前回の半分未満です（${result.sessionCount}件）。部分的な応答の可能性があるため、状態は更新しません。`];
   if (result.status === 'baseline') return [`[${stamp}] 監視の基準を保存しました（${result.sessionCount}件）。次回から変化を知らせます。`];
   if (result.events.length === 0) return [`[${stamp}] 変化はありません（${result.sessionCount}件）。`];
   return [`[${stamp}] ${result.events.length}件の変化:`, ...formatWatchEvents(result.events).map((l) => `  ${l}`)];

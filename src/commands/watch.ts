@@ -8,7 +8,9 @@ import { datesWithinAttendance, searchDefaultsFromProfile } from '../planning/pr
 import type { Profile } from '../profile/profileStore.js';
 import { runScheduleStatus } from './scheduleStatus.js';
 
-export type WatchStatus = 'empty' | 'baseline' | 'checked';
+export type WatchStatus = 'empty' | 'baseline' | 'checked' | 'shrunk';
+
+const MIN_CATALOG_RATIO = 0.5;
 
 export interface WatchResult {
   status: WatchStatus;
@@ -48,8 +50,12 @@ export async function runWatchOnce(
   const current = await fetchAllSessions(client, eventId);
   if (current.length === 0) return { status: 'empty', sessionCount: 0, events: [] };
 
-  const schedule = await runScheduleStatus(client, eventId);
   const previous = loadWatchState(eventId, dataDir);
+  if (previous && current.length < Object.keys(previous.sessions).length * MIN_CATALOG_RATIO) {
+    return { status: 'shrunk', sessionCount: current.length, events: [] };
+  }
+
+  const schedule = await runScheduleStatus(client, eventId);
   const events = previous
     ? detectWatchEvents(previous, current, {
         reservedIds: new Set(schedule.reserved),

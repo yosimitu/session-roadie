@@ -43,6 +43,12 @@ describe('formatWatchReport', () => {
     const r: WatchResult = { status: 'empty', sessionCount: 0, events: [] };
     expect(formatWatchReport(r, stamp).join('\n')).toContain('カタログが空');
   });
+  it('件数が大きく減ったときは、状態を更新しないことを伝える', () => {
+    const r: WatchResult = { status: 'shrunk', sessionCount: 4, events: [] };
+    expect(formatWatchReport(r, stamp)).toEqual([
+      '[12:00:00] 取得件数が前回の半分未満です（4件）。部分的な応答の可能性があるため、状態は更新しません。',
+    ]);
+  });
   it('初回は基準を保存したことを伝える', () => {
     const r: WatchResult = { status: 'baseline', sessionCount: 2194, events: [] };
     expect(formatWatchReport(r, stamp).join('\n')).toContain('基準を保存');

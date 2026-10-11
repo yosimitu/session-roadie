@@ -99,4 +99,27 @@ describe('runWatchOnce', () => {
     const result = await runWatchOnce(client, 'reinvent2026', dir, { maxLevel: 300 }, now);
     expect(result.events.map((e) => e.kind)).toEqual(['newMatching']);
   });
+  it('前回10件→今回4件のときは、状態を更新せず・スケジュールも取らず shrunk を返す', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => String(i));
+    await runWatchOnce(fakeClient(() => ids.map((i) => s(i)), { reserved: [], favorites: [] }), 'reinvent2026', dir, noProfile, now);
+    const before = loadWatchState('reinvent2026', dir);
+    let scheduleCalled = false;
+    const get = async (path: string) => {
+      if (path.endsWith('/schedule')) { scheduleCalled = true; return { schedule: { reserved: [], favorites: [], personalTime: [] } }; }
+      const items = ids.slice(0, 4).map((i) => s(i));
+      return { items, totalCount: items.length };
+    };
+    const result = await runWatchOnce({ get } as unknown as ApiClient, 'reinvent2026', dir, noProfile, new Date('2026-10-12T00:00:00Z'));
+    expect(result).toEqual({ status: 'shrunk', sessionCount: 4, events: [] });
+    expect(loadWatchState('reinvent2026', dir)).toEqual(before);
+    expect(scheduleCalled).toBe(false);
+  });
+
+  it('前回10件→今回5件（ちょうど50%）は通常どおり checked', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => String(i));
+    await runWatchOnce(fakeClient(() => ids.map((i) => s(i)), { reserved: [], favorites: [] }), 'reinvent2026', dir, noProfile, now);
+    const result = await runWatchOnce(fakeClient(() => ids.slice(0, 5).map((i) => s(i)), { reserved: [], favorites: [] }), 'reinvent2026', dir, noProfile, now);
+    expect(result.status).toBe('checked');
+    expect(Object.keys(loadWatchState('reinvent2026', dir)?.sessions ?? {})).toHaveLength(5);
+  });
 });
