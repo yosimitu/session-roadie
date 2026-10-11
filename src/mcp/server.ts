@@ -6,6 +6,7 @@ import {
   authLoginTool,
   authLogoutTool,
   catalogSyncTool,
+  catalogWatchTool,
   catalogSearchTool,
   scheduleOptimizeTool,
   scheduleGetTool,
@@ -76,6 +77,11 @@ export function createServer(): McpServer {
       since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('比較したい過去の日付(YYYY-MM-DD)'),
     },
   }, async ({ eventId, since }) => safely(() => catalogSyncTool(eventId, since)));
+
+  server.registerTool('catalog_watch', {
+    description: 'カタログを取得し、前回の確認からの変化を返す: 満席だったお気に入りの空席表示（seatOpened）、満席のお気に入りの再演の空席表示（altSeatOpened）、プロフィールに合う新着（newMatching）、予約・お気に入りの変更（changedMine）と取消（removedMine）。初回は基準を保存するだけで、変化は返さない（status: baseline）。カタログが0件のときは状態を更新しない（status: empty）。予約は実行しない。空席表示は予約できることを保証しない（limited でも満席のことがある）',
+    inputSchema: { ...eventIdParam },
+  }, async ({ eventId }) => safely(() => catalogWatchTool(eventId)));
 
   server.registerTool('catalog_search', {
     description: 'ローカルスナップショット（catalog_syncで保存）からセッションを絞り込む。キーワード（AND）・トピック・形式・レベル・日付・会場・サービスで絞れる。結果は日時順で、他の回（再演）のIDも返す。英語のタイトル・abstractをそのまま返す',

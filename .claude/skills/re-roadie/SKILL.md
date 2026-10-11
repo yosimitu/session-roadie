@@ -83,6 +83,16 @@ description: re:Invent の参加者の意図をもとに、session-roadie MCPサ
 
 `notes_report` を呼ぶ。テーマ別に整理されたMarkdownがそのまま返るので、必要なら体裁を整えてユーザーに渡す。
 
+## 「空いたら教えて」「新しいセッションは？」「予定が変わっていない？」
+
+`catalog_watch` を呼ぶ（1回の確認。繰り返したいときは、ユーザーに `/loop` か、ターミナルの `re-roadie watch --interval 10` を案内する）。
+
+- `status: baseline`: 初回。基準を保存しただけなので、「次回から変化を知らせる」と伝える。
+- `status: empty`: カタログが空（`ListSessions` が0件）。状態は更新されていない。時間をおいて再実行するよう案内する。
+- `status: checked`: `lines` をユーザーに見せる。種類は `seatOpened`（満席だったお気に入りの空席表示）、`altSeatOpened`（満席のお気に入りの再演の空席表示）、`newMatching`（プロフィールに合う新着）、`changedMine`（予約・お気に入りの会場や時間の変更）、`removedMine`（取消）。
+- 空席表示は**予約できることを保証しない**（`limited` でも満席のことがある）。「予約を試しますか」と聞き、希望があれば `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
+- `changedMine` / `removedMine` は、予約の時間が他の予約と重なっていないか `conflicts_get` で確認するよう添える。
+
 ## カタログが0件のとき（`catalog_sync` が「0件」で失敗する）
 
 公式APIの `ListSessions` が空を返すことがある（予約解禁の前後など）。保存済みのスナップショットは空で上書きされないので、いまあるデータでの検索・最適化は続けられる。最新に更新したいときは、時間をおいて `catalog_sync` をやり直すよう案内する。

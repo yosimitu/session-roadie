@@ -23,6 +23,8 @@ import { signIn, signOut } from '../auth/signIn.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from '../runtimeContext.js';
 import { runScheduleView } from '../commands/scheduleView.js';
 import type { Session } from '../api/types.js';
+import { runWatchOnce } from '../commands/watch.js';
+import { formatWatchEvents } from '../commands/watchReport.js';
 
 // MCPツールのハンドラ本体。「ロジックは全部ここ」という方針（Claude Code → スキル/コマンド →
 // re:Roadie → AWS Events REST API）に従い、McpServerへの配線（src/mcp/server.ts）とは独立させて
@@ -64,6 +66,16 @@ export async function catalogSyncTool(eventId?: string, since?: string) {
   const client = await createClient();
   if (since) return runSyncSince(client, id, DATA_DIR, since);
   return runSync(client, id, DATA_DIR);
+}
+
+/**
+ * 1回だけ確認する。繰り返しは呼び出し側（Claude Code の /loop など）が担う。
+ * 予約は実行しない。空席表示は「予約できるとは限らない」ので、予約する場合は schedule_plan → 確認 → schedule_apply の順に進む。
+ */
+export async function catalogWatchTool(eventId?: string) {
+  const client = await createClient();
+  const result = await runWatchOnce(client, resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH));
+  return { ...result, lines: formatWatchEvents(result.events) };
 }
 
 export async function scheduleGetTool(eventId?: string) {
