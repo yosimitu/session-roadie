@@ -208,4 +208,11 @@ describe('detectWatchEvents: changedMine / removedMine', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ role: 'reserved' });
   });
+
+  it('sessionId が constructor でも、前回に無ければ known 扱いにならず新着になる', () => {
+    const previous = buildWatchState([session({ sessionId: 's1' })], at);
+    const added = session({ sessionId: 'constructor' });
+    const events = detectWatchEvents(previous, [session({ sessionId: 's1' }), added], ctx({ filterNew: (a) => a }));
+    expect(events.map((e) => e.kind)).toEqual(['newMatching']);
+  });
 });

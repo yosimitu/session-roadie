@@ -59,7 +59,7 @@ export function summarizeForNotification(lines: string[]): string {
 export type CommandRunner = (file: string, args: string[]) => Promise<void>;
 
 const execFileAsync = promisify(execFile);
-const defaultRun: CommandRunner = async (file, args) => { await execFileAsync(file, args); };
+const defaultRun: CommandRunner = async (file, args) => { await execFileAsync(file, args, { timeout: 10_000 }); };
 
 /**
  * macOS のデスクトップ通知。本文と題は osascript の引数として渡し、スクリプトの文字列には埋め込まない

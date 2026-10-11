@@ -99,7 +99,7 @@ function brief(s: Session): SessionBrief {
 export function detectWatchEvents(previous: WatchState, current: Session[], context: WatchContext): WatchEvent[] {
   const events: WatchEvent[] = [];
   const currentById = new Map(current.map((s) => [s.sessionId, s]));
-  const known = (id: string) => id in previous.sessions;
+  const known = (id: string) => Object.hasOwn(previous.sessions, id);
   const opened = (s: Session) =>
     known(s.sessionId) && !isSeatOpen(previous.sessions[s.sessionId]?.seat) && isSeatOpen(s.seatAvailability);
 
