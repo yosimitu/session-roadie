@@ -122,5 +122,28 @@ export function detectWatchEvents(previous: WatchState, current: Session[], cont
   const added = current.filter((s) => !known(s.sessionId));
   for (const s of context.filterNew(added)) events.push({ kind: 'newMatching', session: brief(s) });
 
+  // 予約・お気に入りの変更（会場・時間）と取消
+  const mine = new Map<string, WatchRole>();
+  for (const id of context.favoriteIds) mine.set(id, 'favorite');
+  for (const id of context.reservedIds) mine.set(id, 'reserved'); // 予約はお気に入りより優先
+  for (const [id, role] of mine) {
+    const before = previous.sessions[id];
+    if (!before) continue;
+    const now = currentById.get(id);
+    if (!now) {
+      events.push({
+        kind: 'removedMine', role,
+        session: { sessionId: id, abbreviation: before.abbreviation, title: before.title, date: before.date, time: before.time, venue: before.venue, seat: before.seat },
+      });
+      continue;
+    }
+    const after = toFields(now);
+    const changedFields: string[] = [];
+    if (before.venue !== after.venue) changedFields.push('venue');
+    if (before.room !== after.room) changedFields.push('room');
+    if (before.date !== after.date || before.time !== after.time || before.length !== after.length) changedFields.push('sessionTime');
+    if (changedFields.length > 0) events.push({ kind: 'changedMine', role, session: brief(now), changedFields });
+  }
+
   return events;
 }

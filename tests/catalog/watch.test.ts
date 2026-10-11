@@ -160,3 +160,41 @@ describe('detectWatchEvents: newMatching', () => {
     expect(received).toEqual(['new1']);
   });
 });
+
+describe('detectWatchEvents: changedMine / removedMine', () => {
+  it('予約済みの会場が変わったら changedMine（venue）', () => {
+    const before = [session({ sessionId: 's1', venue: 'Venetian' })];
+    const after = [session({ sessionId: 's1', venue: 'Wynn' })];
+    const events = detectWatchEvents(buildWatchState(before, at), after, ctx({ reservedIds: new Set(['s1']) }));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'changedMine', role: 'reserved', changedFields: ['venue'], session: { sessionId: 's1', venue: 'Wynn' } });
+  });
+
+  it('お気に入りの時間が変わったら changedMine（sessionTime）', () => {
+    const before = [session({ sessionId: 's1' })];
+    const after = [session({ sessionId: 's1', sessionTime: { date: '2026-12-02', time: '11:00', length: '60' } })];
+    const events = detectWatchEvents(buildWatchState(before, at), after, ctx({ favoriteIds: new Set(['s1']) }));
+    expect(events[0]).toMatchObject({ kind: 'changedMine', role: 'favorite', changedFields: ['sessionTime'] });
+  });
+
+  it('予約でもお気に入りでもないセッションの変更は知らせない', () => {
+    const before = [session({ sessionId: 's1', venue: 'Venetian' })];
+    const after = [session({ sessionId: 's1', venue: 'Wynn' })];
+    expect(detectWatchEvents(buildWatchState(before, at), after, ctx())).toEqual([]);
+  });
+
+  it('カタログから消えた予約は removedMine（前回のタイトルを使う）', () => {
+    const before = [session({ sessionId: 's1', title: 'Gone Session' })];
+    const events = detectWatchEvents(buildWatchState(before, at), [], ctx({ reservedIds: new Set(['s1']) }));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'removedMine', role: 'reserved', session: { sessionId: 's1', title: 'Gone Session' } });
+  });
+
+  it('予約かつお気に入りなら、予約として知らせる', () => {
+    const before = [session({ sessionId: 's1', venue: 'Venetian' })];
+    const after = [session({ sessionId: 's1', venue: 'Wynn' })];
+    const events = detectWatchEvents(buildWatchState(before, at), after, ctx({ reservedIds: new Set(['s1']), favoriteIds: new Set(['s1']) }));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ role: 'reserved' });
+  });
+});
