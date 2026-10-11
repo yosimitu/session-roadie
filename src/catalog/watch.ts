@@ -118,5 +118,9 @@ export function detectWatchEvents(previous: WatchState, current: Session[], cont
     }
   }
 
+  // プロフィールに合う新着
+  const added = current.filter((s) => !known(s.sessionId));
+  for (const s of context.filterNew(added)) events.push({ kind: 'newMatching', session: brief(s) });
+
   return events;
 }

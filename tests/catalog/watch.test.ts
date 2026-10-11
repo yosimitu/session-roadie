@@ -136,3 +136,27 @@ describe('detectWatchEvents: altSeatOpened', () => {
     expect(events.filter((e) => e.kind === 'altSeatOpened')).toHaveLength(1);
   });
 });
+
+describe('detectWatchEvents: newMatching', () => {
+  it('前回に無かったセッションのうち、filterNew を通ったものだけを知らせる', () => {
+    const old = session({ sessionId: 'old' });
+    const matching = session({ sessionId: 'new1', title: 'Security deep dive' });
+    const other = session({ sessionId: 'new2', title: 'Other' });
+    const events = detectWatchEvents(
+      buildWatchState([old], at), [old, matching, other],
+      ctx({ filterNew: (added) => added.filter((s) => s.sessionId === 'new1') }),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'newMatching', session: { sessionId: 'new1', title: 'Security deep dive' } });
+  });
+
+  it('filterNew には、新着だけが渡される', () => {
+    const old = session({ sessionId: 'old' });
+    const added = session({ sessionId: 'new1' });
+    let received: string[] = [];
+    detectWatchEvents(buildWatchState([old], at), [old, added], ctx({
+      filterNew: (list) => { received = list.map((s) => s.sessionId); return []; },
+    }));
+    expect(received).toEqual(['new1']);
+  });
+});
