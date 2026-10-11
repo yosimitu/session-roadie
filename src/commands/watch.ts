@@ -47,7 +47,8 @@ export async function runWatchOnce(
   profile: Profile | undefined,
   now: Date = new Date(),
 ): Promise<WatchResult> {
-  const current = await fetchAllSessions(client, eventId);
+  const fetched = await fetchAllSessions(client, eventId);
+  const current = [...new Map(fetched.map((s) => [s.sessionId, s])).values()];
   if (current.length === 0) return { status: 'empty', sessionCount: 0, events: [] };
 
   const previous = loadWatchState(eventId, dataDir);
