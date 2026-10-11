@@ -30,6 +30,9 @@ import { runScheduleView } from './commands/scheduleView.js';
 import { loadProfile } from './profile/profileStore.js';
 import { startMcpServer } from './mcp/server.js';
 import type { BulkResult, Session } from './api/types.js';
+import { runWatchOnce } from './commands/watch.js';
+import { formatWatchReport, summarizeForNotification, formatWatchEvents, notifyDesktop } from './commands/watchReport.js';
+import { parseIntervalMinutes, runWatchLoop } from './commands/watchLoop.js';
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
 // パイプ入力（テスト・自動化実行）では readline が全行を同じティックで同期的に 'line' イベント
@@ -496,6 +499,42 @@ auth
   .action(async () => {
     await signOut(getTokenStore());
     console.log('サインアウトしました。');
+  });
+
+program
+  .command('watch')
+  .description('カタログを取得し、満席だったお気に入り（と再演）の空席表示・プロフィールに合う新着・予約とお気に入りの変更と取消を知らせる（予約はしない）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('--interval <minutes>', '指定した分ごとに繰り返す（5分以上の整数）。省略時は1回だけ確認して終了する')
+  .option('--notify', 'macOS のデスクトップ通知も出す（macOS 以外ではコンソール表示のみ）', false)
+  .action(async (options: { eventId: string; interval?: string; notify: boolean }) => {
+    const intervalMinutes = options.interval === undefined ? undefined : parseIntervalMinutes(options.interval);
+    if (options.notify && process.platform !== 'darwin') {
+      console.warn('警告: --notify は macOS のみ対応です。コンソール表示のみにします。');
+    }
+
+    const tick = async (): Promise<void> => {
+      const client = await createClient(); // 毎回呼ぶ（アクセストークンの自動更新のため）
+      const result = await runWatchOnce(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH));
+      const stamp = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+      for (const line of formatWatchReport(result, stamp)) console.log(line);
+      if (options.notify && result.events.length > 0) {
+        await notifyDesktop('re:Roadie: 空席・新着の通知', summarizeForNotification(formatWatchEvents(result.events)));
+      }
+    };
+
+    if (intervalMinutes === undefined) {
+      await tick();
+      return;
+    }
+    console.log(`${intervalMinutes}分ごとに確認します。終了は Ctrl+C。`);
+    await runWatchLoop({
+      tick,
+      intervalMs: intervalMinutes * 60_000,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      isFatal: (err) => toRoadieError(err).kind === 'authExpired',
+      onError: (err) => { for (const line of formatRoadieErrorForCli(toRoadieError(err))) console.error(line); },
+    });
   });
 
 program
