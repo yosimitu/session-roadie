@@ -40,10 +40,16 @@ function toFields(s: Session): WatchedFields {
   };
 }
 
-export function buildWatchState(sessions: Session[], observedAt: Date): WatchState {
+export function buildWatchState(sessions: Session[], observedAt: Date, previous?: WatchState): WatchState {
   return {
     observedAt: observedAt.toISOString(),
-    sessions: Object.fromEntries(sessions.map((s) => [s.sessionId, toFields(s)])),
+    sessions: Object.fromEntries(
+      sessions.map((s) => {
+        const fields = toFields(s);
+        const before = previous?.sessions[s.sessionId]?.seat;
+        return [s.sessionId, fields.seat === undefined && before !== undefined ? { ...fields, seat: before } : fields];
+      }),
+    ),
   };
 }
 

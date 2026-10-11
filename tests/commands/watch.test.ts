@@ -122,6 +122,7 @@ describe('runWatchOnce', () => {
     expect(result.status).toBe('checked');
     expect(Object.keys(loadWatchState('reinvent2026', dir)?.sessions ?? {})).toHaveLength(5);
   });
+
   it('同じ sessionId が重複して返っても、新着は1件で、件数は畳んだ後', async () => {
     let extra: Session[] = [];
     const client = fakeClient(() => [s('old'), ...extra], { reserved: [], favorites: [] });
@@ -130,5 +131,17 @@ describe('runWatchOnce', () => {
     const result = await runWatchOnce(client, 'reinvent2026', dir, { maxLevel: 300 }, now);
     expect(result.events.map((e) => e.kind)).toEqual(['newMatching']);
     expect(result.sessionCount).toBe(2);
+  });
+
+  it('空席の値が一時的に欠けても、available → 欠落 → available で seatOpened を出さない', async () => {
+    let seat: Session['seatAvailability'] = 'available';
+    const client = fakeClient(() => [s('1', { seatAvailability: seat })], { reserved: [], favorites: ['1'] });
+    await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    seat = undefined;
+    const second = await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect(loadWatchState('reinvent2026', dir)?.sessions['1']?.seat).toBe('available');
+    seat = 'available';
+    const third = await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect([...second.events, ...third.events].map((e) => e.kind)).toEqual([]);
   });
 });

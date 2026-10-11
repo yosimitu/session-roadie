@@ -25,6 +25,17 @@ describe('isSeatOpen', () => {
   });
 });
 
+describe('buildWatchState: previous', () => {
+  it('available → 欠落 → available の確認で、seatOpened が出ない', () => {
+    const c = ctx({ favoriteIds: new Set(['s1']) });
+    const t1 = buildWatchState([session({ sessionId: 's1', seatAvailability: 'available' })], at);
+    const t2 = buildWatchState([session({ sessionId: 's1' })], at, t1);
+    expect(t2.sessions.s1?.seat).toBe('available');
+    const events = detectWatchEvents(t2, [session({ sessionId: 's1', seatAvailability: 'available' })], c);
+    expect(events).toEqual([]);
+  });
+});
+
 describe('buildWatchState', () => {
   it('セッションごとに、空席・会場・日時・タイトルを記録する', () => {
     const state = buildWatchState(

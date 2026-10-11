@@ -65,6 +65,6 @@ export async function runWatchOnce(
       })
     : [];
 
-  saveWatchState(eventId, buildWatchState(current, now), dataDir);
+  saveWatchState(eventId, buildWatchState(current, now, previous), dataDir);
   return { status: previous ? 'checked' : 'baseline', sessionCount: current.length, events };
 }
