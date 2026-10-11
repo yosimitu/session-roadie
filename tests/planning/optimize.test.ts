@@ -6,8 +6,8 @@ function session(sessionId: string, abbreviation: string | undefined, date: stri
   return { sessionId, abbreviation, title: `T-${sessionId}`, venue, sessionTime: { date, time, length } };
 }
 
-// 12/2 08:30-10:00 PST = 16:30-18:00 UTC
-const keynote: PersonalTime = { personalTimeId: 'k', title: 'Keynote', description: '', startDateTime: '2026-12-02T16:30:00', endDateTime: '2026-12-02T18:00:00' };
+// 12/2 08:30-10:00 PST（個人予定も現地時刻のまま保存される）
+const keynote: PersonalTime = { personalTimeId: 'k', title: 'Keynote', description: '', startDateTime: '2026-12-02T08:30:00', endDateTime: '2026-12-02T10:00:00' };
 
 describe('optimizeSchedule', () => {
   it('重ならなければ指定どおりの回をすべて選ぶ（差し替えなし）', () => {

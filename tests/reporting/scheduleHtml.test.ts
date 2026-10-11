@@ -49,16 +49,15 @@ describe('buildScheduleHtml', () => {
     expect(out.match(/data-session="f"/g)?.length).toBe(2);
   });
 
-  it('個人予定は、現地時刻のまま保存されたものはそのまま、re:Roadieが書いたもの（UTC）はPSTに直して描く', () => {
+  it('個人予定は、re:Roadieが書いた移動ブロックも含め、保存値を現地時刻としてそのまま描く', () => {
     const keynote: PersonalTime = {
       personalTimeId: 'k', title: 'Opening Keynote', location: 'Personal',
       description: '現地PST 12/1 08:30–10:30。アプリは保存値をそのまま表示するため、現地時刻のまま保存',
       startDateTime: '2026-12-01T08:30:00', endDateTime: '2026-12-01T10:30:00',
     };
-    // 11:00-11:30 PST = 19:00-19:30 UTC
     const travel: PersonalTime = {
       personalTimeId: 't', title: 'MGM Grand → Venetian 移動', description: '30分の移動時間を確保（概算値・要検証）',
-      startDateTime: '2026-12-01T19:00:00', endDateTime: '2026-12-01T19:30:00',
+      startDateTime: '2026-12-01T11:00:00', endDateTime: '2026-12-01T11:30:00',
     };
     const out = html(schedule([], [], [keynote, travel]), []);
     expect(out).toContain('08:30–10:30');
@@ -312,7 +311,7 @@ describe('buildScheduleHtml', () => {
       };
       const roadieBlock: PersonalTime = {
         personalTimeId: 't', title: 'A → B 移動', description: '30分の移動時間を確保（概算値・要検証）',
-        startDateTime: '2026-12-01T19:00:00', endDateTime: '2026-12-01T19:30:00',
+        startDateTime: '2026-12-01T11:00:00', endDateTime: '2026-12-01T11:30:00',
       };
       const meta = embeddedMeta(html(schedule([], [], [keynote, roadieBlock]), [a]));
       expect(meta.personal).toEqual([{ date: '2026-12-01', start: 510, end: 600, title: 'Keynote' }]); // re:Roadie の移動ブロックは含めない

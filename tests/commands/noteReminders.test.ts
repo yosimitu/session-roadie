@@ -27,7 +27,7 @@ describe('buildNoteReminderPlan', () => {
       reserved: [], favorites: [],
       personalTime: [{
         personalTimeId: 'pt-1',
-        startDateTime: '2026-12-02T17:45:00', endDateTime: '2026-12-02T18:00:00',
+        startDateTime: '2026-12-02T09:45:00', endDateTime: '2026-12-02T10:00:00',
         title: '📝 SVS401', description: 'メモ',
       }],
     };

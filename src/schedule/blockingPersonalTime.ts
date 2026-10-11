@@ -1,4 +1,5 @@
 import type { PersonalTime } from '../api/types.js';
+import { VENUE_UTC_OFFSET_HOURS } from './sessionTimeUtc.js';
 import { NOTE_REMINDER_TITLE_PREFIX } from './noteReminder.js';
 import { TRAVEL_BLOCK_DESCRIPTION_MARKER } from './travelBlock.js';
 
@@ -7,12 +8,18 @@ export interface TimeRange {
   end: Date;
 }
 
-/** PersonalTimeの日時は末尾Zなしの UTC 文字列（"YYYY-MM-DDTHH:MM:SS"） */
+/**
+ * PersonalTimeの日時は末尾Zなしの会場現地時刻（"YYYY-MM-DDTHH:MM:SS"、アプリは保存値をそのまま表示する）。
+ * sessionStartUtc/sessionEndUtc と比べられるよう、現地時刻 + 8時間の Date にそろえて返す。
+ */
 export function personalTimeRangeUtc(pt: PersonalTime): TimeRange | undefined {
   const start = new Date(`${pt.startDateTime}Z`);
   const end = new Date(`${pt.endDateTime}Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return undefined;
-  return { start, end };
+  return {
+    start: new Date(start.getTime() + VENUE_UTC_OFFSET_HOURS * 3_600_000),
+    end: new Date(end.getTime() + VENUE_UTC_OFFSET_HOURS * 3_600_000),
+  };
 }
 
 /**

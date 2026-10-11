@@ -62,7 +62,7 @@ export interface Event {
 
 export interface PersonalTime {
   personalTimeId: string;
-  startDateTime: string; // "YYYY-MM-DDTHH:MM:SS" UTC
+  startDateTime: string; // "YYYY-MM-DDTHH:MM:SS" 会場の現地時刻（保存値がそのままアプリに表示される）
   endDateTime: string;
   title: string;
   description: string;
@@ -70,7 +70,7 @@ export interface PersonalTime {
 }
 
 export interface PersonalTimeInput {
-  startDateTime: string; // UTC固定。5分刻み必須。末尾Z/オフセット禁止
+  startDateTime: string; // 会場の現地時刻で書く（保存値がそのまま表示される）。5分刻み必須。末尾Z/オフセット禁止
   endDateTime: string;
   title: string;
   description: string;

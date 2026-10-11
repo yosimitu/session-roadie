@@ -10,9 +10,9 @@ describe('buildNoteReminder', () => {
     };
     const pt = buildNoteReminder(session, '田中さんが絶対見ろと言っていた');
 
-    // 10:00 PST = 18:00 UTC、15分前は17:45
-    expect(pt?.startDateTime).toBe('2026-12-02T17:45:00');
-    expect(pt?.endDateTime).toBe('2026-12-02T18:00:00');
+    // 10:00 PST の15分前は9:45（現地時刻のまま書く）
+    expect(pt?.startDateTime).toBe('2026-12-02T09:45:00');
+    expect(pt?.endDateTime).toBe('2026-12-02T10:00:00');
     expect(pt?.description).toBe('田中さんが絶対見ろと言っていた');
   });
 

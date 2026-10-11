@@ -20,10 +20,10 @@ describe('computeTravelBlock', () => {
     expect(result?.sufficient).toBe(true);
     expect(result?.requiredMinutes).toBe(15);
     expect(result?.availableMinutes).toBe(30);
-    // 10:00 PST開始+60分 = 11:00 PST終了 = 19:00 UTC
-    expect(result?.personalTime?.startDateTime).toBe('2026-12-02T19:00:00');
-    // 11:30 PST開始 = 19:30 UTC
-    expect(result?.personalTime?.endDateTime).toBe('2026-12-02T19:30:00');
+    // 10:00 PST開始+60分 = 11:00 PST終了（現地時刻のまま書く）
+    expect(result?.personalTime?.startDateTime).toBe('2026-12-02T11:00:00');
+    // 11:30 PST開始
+    expect(result?.personalTime?.endDateTime).toBe('2026-12-02T11:30:00');
     expect(result?.personalTime?.title).not.toContain('[');
   });
 

@@ -6,7 +6,7 @@ export interface PersonalTimeConflict {
   sessionId: string;
   personalTimeId: string;
   personalTimeTitle: string;
-  startDateTime: string; // UTC（PersonalTimeの形式のまま）
+  startDateTime: string; // 会場の現地時刻（PersonalTimeの形式のまま）
   endDateTime: string;
 }
 

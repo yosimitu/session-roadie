@@ -84,22 +84,20 @@ function sessionRange(s: Session): { date: string; start: number; end: number } 
   return { date, start, end: start + (Number(length) || 30) };
 }
 
-/** re:Roadie が書いた移動ブロック・リマインダーは UTC で保存されている（それ以外の個人予定は現地時刻のまま保存） */
+/** re:Roadie が書いた移動ブロック・リマインダー（個人予定の日時は、どれも会場の現地時刻のまま保存されている） */
 function isRoadieDerived(pt: PersonalTime): boolean {
   return pt.title.startsWith(NOTE_REMINDER_TITLE_PREFIX) || pt.description.includes(TRAVEL_BLOCK_DESCRIPTION_MARKER);
 }
 
-function toVenueLocal(iso: string, shiftFromUtc: boolean): { date: string; minutes: number } | undefined {
-  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  const local = shiftFromUtc ? new Date(parsed.getTime() - VENUE_UTC_OFFSET_MS) : parsed;
+function toVenueLocal(iso: string): { date: string; minutes: number } | undefined {
+  const local = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  if (Number.isNaN(local.getTime())) return undefined;
   return { date: local.toISOString().slice(0, 10), minutes: local.getUTCHours() * 60 + local.getUTCMinutes() };
 }
 
 function personalRange(pt: PersonalTime): { date: string; start: number; end: number } | undefined {
-  const shift = isRoadieDerived(pt);
-  const start = toVenueLocal(pt.startDateTime, shift);
-  const end = toVenueLocal(pt.endDateTime, shift);
+  const start = toVenueLocal(pt.startDateTime);
+  const end = toVenueLocal(pt.endDateTime);
   if (!start || !end) return undefined;
   return { date: start.date, start: start.minutes, end: end.date === start.date ? end.minutes : MINUTES_PER_DAY };
 }
