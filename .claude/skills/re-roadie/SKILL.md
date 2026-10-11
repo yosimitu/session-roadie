@@ -89,9 +89,11 @@ description: re:Invent の参加者の意図をもとに、session-roadie MCPサ
 
 - `status: baseline`: 初回。基準を保存しただけなので、「次回から変化を知らせる」と伝える。
 - `status: empty`: カタログが空（`ListSessions` が0件）。状態は更新されていない。時間をおいて再実行するよう案内する。
+- `status: shrunk`: 取得件数が前回の半分未満。部分的な応答の可能性があり、状態は更新されていない。時間をおいて再実行するよう案内する。
 - `status: checked`: `lines` をユーザーに見せる。種類は `seatOpened`（満席だったお気に入りの空席表示）、`altSeatOpened`（満席のお気に入りの再演の空席表示）、`newMatching`（プロフィールに合う新着）、`changedMine`（予約・お気に入りの会場や時間の変更）、`removedMine`（取消）。
 - 空席表示は**予約できることを保証しない**（`limited` でも満席のことがある）。「予約を試しますか」と聞き、希望があれば `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
 - `changedMine` / `removedMine` は、予約の時間が他の予約と重なっていないか `conflicts_get` で確認するよう添える。
+- `catalog_watch` と `re-roadie watch` は同じ状態ファイルを共有する。片方が確認すると、もう片方からは同じ変化が見えなくなるので、どちらか一方で使うよう案内する。
 
 ## カタログが0件のとき（`catalog_sync` が「0件」で失敗する）
 
