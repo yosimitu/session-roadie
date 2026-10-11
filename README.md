@@ -157,7 +157,7 @@ Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジ�
 
 ## 現状の制約
 
-- **`CancelReservation` は、実機で確認できていません**（モックテストでの確認にとどまります）。`ReserveSessions` は、開放日（2026-10-08）には HTTP 409「This operation is currently disabled」で拒否されましたが、2026-10-11 には動作し、1 件の予約に成功しました（`apply` の再照合で一致を確認）。満席は `failed[].code` の `sessionFull` で返ります。`seatAvailability` が `limited` などでも満席のことがあり、空席表示は予約の可否を保証しません。
+- **`ReserveSessions` は、開放日（2026-10-08）には HTTP 409「This operation is currently disabled」で拒否されましたが、2026-10-11 には動作し、1 件の予約に成功しました。** 同日、その予約の取消（`CancelReservation`）にも成功しています（どちらも `apply` の再照合で一致を確認）。満席は `failed[].code` の `sessionFull` で返ります。`seatAvailability` が `limited` などでも満席のことがあり、空席表示は予約の可否を保証しません。
 - **会場間の移動時間テーブル（[src/schedule/travelTime.ts](src/schedule/travelTime.ts)）は実測値ではありません**。公式のキャンパスマップ（縮尺なしの模式図）上の位置から読み取った距離をもとにした推測値です（縮尺は MGM Grand〜Caesars Palace を約1.2マイルと仮定）。0.7マイル未満は徒歩（時速3マイル＋一律8分。ただし Venetian・Wynn/Encore・Forum の3会場間は指定により15分）、以上はシャトル（1.2マイル以下は20分、1.2マイル超は30分）としています。シャトルの運行時刻・停留所は確認していません。Caesars Palace と Caesars Forum は別会場として持ち、`Wynn/Encore` は Encore 側を見込んだ距離で求めています。未知の会場は40分として扱います。
 - **PersonalTimeの日時はPST固定（UTC-8）で計算**しています。`GetEvent`の実データ（`startDate`/`endDate`のISO8601オフセット）で裏付け済みです。
 - **個人予定の保存時刻の規約が、取得したデータの中で混在しています（未解決）。** re:Roadie が書き込む移動ブロック・メモのリマインダーは UTC で保存しますが、`GetSchedule` に入っている基調講演などの個人予定は、説明に「現地時刻のまま保存」とあり、現地時刻（PSTの値そのもの）で保存されています。`re-roadie view` は、移動ブロック・リマインダーだけを UTC として PST に直して描き、それ以外は保存値をそのまま現地時刻として描きます。一方で `schedule_optimize`・`conflicts_get` の個人予定との重なり判定は、すべての個人予定を UTC として扱っているため、現地時刻で保存された基調講演との重なりを検出できない可能性があります（未検証）。

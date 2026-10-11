@@ -182,7 +182,8 @@ interface ApplyResult {
 - **`ReserveSessions` が開放されていた。** 2026-10-11 に再実行したところ、409 は返らなかった。
 - **満席の失敗は `failed[].code` の `sessionFull` で返った。** お気に入りのうち 5 件（`OPN401-R`、`AIM301-R1`、`MAM348`、`AIM336-R1`、`TNC336-R`）が `sessionFull` で失敗した。予約は 11 件のまま変わらなかった。設計時の想定どおり、API の `BulkResult` をそのまま使えている。
 - **`ReserveSessions` の成功を確認した。** `seatAvailability` が `limited` の `ANT409`（Chalk talk、12/3 08:30）を 1 件予約し、成功した。`apply` の再照合（`GetSchedule`）で、予約が 11 件から 12 件になり、あるべき状態と一致することも確認した。
-- **未確認のもの。** `CancelReservation` の実機確認は、まだしていない（モックテストでの確認にとどまる）。`seatAvailability` が `available`/`limited`/`veryLimited` でも満席のことがあり、空席表示は予約の可否を保証しない。
+- **`CancelReservation` の成功を確認した。** 予約した `ANT409` を `apply`（`reserve` から外す）で取り消したところ、結果は `deleted` で、`GetSchedule` の再照合で予約が 12 件から 11 件に戻り、他の予約に影響しないことを確認した。
+- **注意点。** `seatAvailability` が `available`/`limited`/`veryLimited` でも満席のことがあり、空席表示は予約の可否を保証しない。
 
 ## 9. 開発中の計画書について
 
