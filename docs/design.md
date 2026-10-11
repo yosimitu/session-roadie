@@ -173,10 +173,17 @@ interface ApplyResult {
 
 予約 API の開放日に、実機で確認したことです。
 
-- **`ReserveSessions` は、HTTP 409「This operation is currently disabled」で拒否された。** 開放前の状態と推測しているが、未確認。成功時のレスポンスと、`CancelReservation` は、モックテストでの確認にとどまる。同じ日の `GetSchedule` の `reserved` には、予約済みのセッションが入っていた（re:Roadie からの予約は成功していないため、公式アプリでの予約と推測している。未確認）。
+- **`ReserveSessions` は、HTTP 409「This operation is currently disabled」で拒否された。** 開放前の状態と推測している。同じ日の `GetSchedule` の `reserved` には、予約済みのセッションが入っていた（re:Roadie からの予約は成功していないため、公式アプリでの予約と推測している。未確認）。
 - **`GetSchedule` の個人予定の時刻の規約が、取得したデータの中で混在している（未解決）。** re:Roadie が書き込む移動ブロックとメモのリマインダーは UTC で保存するが、基調講演などの個人予定には、説明に「現地時刻のまま保存」とあり、PST の値そのもので保存されている。詳細と、扱いの現状は [README の「現状の制約」](../README.md) を参照。
 - **座席の空き状況に、値が入っていた。** 空席状況（`available`/`limited`/`veryLimited`/`unavailable`）が、実データに入っていることを確認した。
 
-## 8. 開発中の計画書について
+## 8. 2026-10-11 の確認
+
+- **`ReserveSessions` が開放されていた。** 2026-10-11 に再実行したところ、409 は返らなかった。
+- **満席の失敗は `failed[].code` の `sessionFull` で返った。** お気に入りのうち 5 件（`OPN401-R`、`AIM301-R1`、`MAM348`、`AIM336-R1`、`TNC336-R`）が `sessionFull` で失敗した。予約は 11 件のまま変わらなかった。設計時の想定どおり、API の `BulkResult` をそのまま使えている。
+- **`ReserveSessions` の成功を確認した。** `seatAvailability` が `limited` の `ANT409`（Chalk talk、12/3 08:30）を 1 件予約し、成功した。`apply` の再照合（`GetSchedule`）で、予約が 11 件から 12 件になり、あるべき状態と一致することも確認した。
+- **未確認のもの。** `CancelReservation` の実機確認は、まだしていない（モックテストでの確認にとどまる）。`seatAvailability` が `available`/`limited`/`veryLimited` でも満席のことがあり、空席表示は予約の可否を保証しない。
+
+## 9. 開発中の計画書について
 
 実装中は、AI エージェント向けの、手順ごとの実装計画書を使っていました。ステップごとのコード片が大半で、読み物としては長いため、公開用には、この文書にまとめました。元の計画書は、公開リポジトリには含めていません。
