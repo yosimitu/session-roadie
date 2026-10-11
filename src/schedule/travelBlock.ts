@@ -31,9 +31,13 @@ export function computeTravelBlock(sessionA: Session, sessionB: Session): Travel
     return { sufficient, requiredMinutes, availableMinutes };
   }
 
+  // 空き時間すべてではなく、前のセッションの終了直後から、必要な移動時間（5分刻みに切り上げ）だけを埋める
+  const blockMinutes = Math.ceil(requiredMinutes / 5) * 5;
+  const blockEnd = new Date(endA.getTime() + blockMinutes * 60_000);
+
   const personalTime: PersonalTimeInput = {
     startDateTime: toPersonalTimeDateTime(endA),
-    endDateTime: toPersonalTimeDateTime(startB),
+    endDateTime: toPersonalTimeDateTime(blockEnd),
     title: sanitizeForPersonalTime(`${sessionA.venue} → ${sessionB.venue} 移動`),
     description: sanitizeForPersonalTime(`${requiredMinutes}${TRAVEL_BLOCK_DESCRIPTION_MARKER}（概算値・要検証）`),
   };

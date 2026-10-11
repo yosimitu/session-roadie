@@ -22,9 +22,24 @@ describe('computeTravelBlock', () => {
     expect(result?.availableMinutes).toBe(30);
     // 10:00 PST開始+60分 = 11:00 PST終了（現地時刻のまま書く）
     expect(result?.personalTime?.startDateTime).toBe('2026-12-02T11:00:00');
-    // 11:30 PST開始
-    expect(result?.personalTime?.endDateTime).toBe('2026-12-02T11:30:00');
+    // 必要な15分だけを前のセッションの終了直後に置く（次の開始 11:30 までは埋めない）
+    expect(result?.personalTime?.endDateTime).toBe('2026-12-02T11:15:00');
     expect(result?.personalTime?.title).not.toContain('[');
+  });
+
+  it('空き時間が長くても、ブロックは必要な移動時間だけにする', () => {
+    const a = session({
+      sessionId: 'a', venue: 'Venetian',
+      sessionTime: { date: '2026-12-02', time: '10:00', length: '60' },
+    });
+    const b = session({
+      sessionId: 'b', venue: 'Wynn',
+      sessionTime: { date: '2026-12-02', time: '12:00', length: '60' },
+    });
+    const result = computeTravelBlock(a, b);
+    expect(result?.availableMinutes).toBe(60);
+    expect(result?.personalTime?.startDateTime).toBe('2026-12-02T11:00:00');
+    expect(result?.personalTime?.endDateTime).toBe('2026-12-02T11:15:00');
   });
 
   it('移動が間に合わない場合はPersonalTimeInputを生成しない', () => {
