@@ -27,7 +27,7 @@ import {
 import { ONBOARDING_EVENT_DATES } from '../onboarding/wizard.js';
 import { mcpErrorResult } from '../errors.js';
 
-const eventIdParam = { eventId: z.string().optional().describe('イベントID（省略時は reinvent2026）') };
+const eventIdParam = { eventId: z.string().regex(/^[A-Za-z0-9_-]+$/).optional().describe('イベントID（省略時は reinvent2026）') };
 const sessionIdsParam = {
   reserve: z.array(z.string()).optional().describe('予約したいセッションIDの一覧（あるべき状態）。省略時は予約を現状維持。全取消は [] を明示する'),
   favorite: z.array(z.string()).optional().describe('お気に入りにしたいセッションIDの一覧（あるべき状態）。省略時はお気に入りを現状維持。全解除は [] を明示する'),

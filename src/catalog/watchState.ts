@@ -4,6 +4,7 @@ import type { WatchState } from './watch.js';
 
 // 手動の catalog_sync のスナップショットとは別に持つ。sync を実行しても、watch の比較元は変わらない。
 function statePath(eventId: string, dir: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(eventId)) throw new Error(`eventId は英数字・ハイフン・アンダースコアのみ使えます: "${eventId}"`);
   return join(dir, `watch-state-${eventId}.json`);
 }
 

@@ -32,4 +32,16 @@ describe('watchState', () => {
     saveWatchState('reinvent2026', state, dir);
     expect(loadWatchState('other', dir)).toBeUndefined();
   });
+
+  it('eventId にパス区切りなどを含むと、load / save が例外を投げる', () => {
+    for (const bad of ['../x', 'a/b', '']) {
+      expect(() => loadWatchState(bad, dir)).toThrow('eventId は英数字・ハイフン・アンダースコアのみ使えます');
+      expect(() => saveWatchState(bad, state, dir)).toThrow('eventId は英数字・ハイフン・アンダースコアのみ使えます');
+    }
+  });
+
+  it('英数字・ハイフン・アンダースコアの eventId は通る', () => {
+    expect(() => saveWatchState('reinvent2026', state, dir)).not.toThrow();
+    expect(() => loadWatchState('re-invent_2026', dir)).not.toThrow();
+  });
 });
