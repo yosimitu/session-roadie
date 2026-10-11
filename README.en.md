@@ -228,6 +228,7 @@ Example prompts for Claude Code. Free-form text is fine for all of them, with no
 | `re-roadie sync` | Gets the catalog diff |
 | `re-roadie view` | Writes the schedule and catalog to a single HTML file (`--date`, `--new-since`, and `--out` are available) |
 | `re-roadie schedule` | Lists reservations, favorites, and personal time |
+| `re-roadie watch` | Reports seat displays that opened on full favorites, new sessions matching your profile, and changes and cancellations of your reservations and favorites (`--interval 10` repeats, `--notify` adds a macOS notification) |
 | `re-roadie conflicts` | Detects overlaps among reserved sessions |
 | `re-roadie init` | Profile questions (first-time setup, including priorities) |
 

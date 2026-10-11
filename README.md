@@ -250,6 +250,7 @@ Claude Code に話しかけるときの文例です。いずれも自由文で�
 | `re-roadie sync` | カタログの差分を取る |
 | `re-roadie view` | 予定とカタログを1枚のHTMLに書き出す（`--date`、`--new-since`、`--out` を指定できる） |
 | `re-roadie schedule` | 予約・お気に入り・個人予定の一覧を表示する |
+| `re-roadie watch` | 満席だったお気に入りの空席表示・プロフィールに合う新着・予約とお気に入りの変更と取消を知らせる（`--interval 10` で繰り返し、`--notify` で macOS の通知） |
 | `re-roadie conflicts` | 予約済みセッションの重複を検出する |
 | `re-roadie init` | プロフィールの質問（初回セットアップ。優先順位を含む） |
 
