@@ -25,6 +25,14 @@ re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API]
 - Git
 - macOS / Windows
 
+Windows では、[nodejs.org](https://nodejs.org/) の LTS インストーラー（`.msi`）か、`winget` で入れられます。入れたあとはターミナルを開き直してください。
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+node -v
+```
+
 ## セットアップ
 
 ```bash

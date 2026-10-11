@@ -23,6 +23,14 @@ It has no UI that replaces the official app (the idea is that at the venue you o
 - Git
 - macOS / Windows
 
+On Windows, install them with the LTS installer (`.msi`) from [nodejs.org](https://nodejs.org/) or with `winget`. Open a new terminal afterwards.
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+node -v
+```
+
 ## Setup
 
 ```bash
