@@ -1,4 +1,5 @@
 import type { SeatAvailability, Session } from '../api/types.js';
+import { findRepeats } from '../planning/alternatives.js';
 
 // 監視（空席・新着・変更）の判定。副作用を持たない純粋関数だけを置く。
 // 空席の判定は seatAvailability の表示が変わったかどうかで、予約できるかどうかは保証しない
@@ -101,6 +102,20 @@ export function detectWatchEvents(previous: WatchState, current: Session[], cont
     if (context.reservedIds.has(id)) continue;
     const s = currentById.get(id);
     if (s && opened(s)) events.push({ kind: 'seatOpened', session: brief(s) });
+  }
+
+  // 満席（unavailable）のお気に入りの再演（-R / -R1 など）に空席表示が出た
+  const alreadyAlt = new Set<string>();
+  for (const id of context.favoriteIds) {
+    if (context.reservedIds.has(id)) continue;
+    const fav = currentById.get(id);
+    if (!fav || fav.seatAvailability !== 'unavailable') continue;
+    for (const repeat of findRepeats(current, fav)) {
+      if (context.reservedIds.has(repeat.sessionId) || context.favoriteIds.has(repeat.sessionId)) continue;
+      if (alreadyAlt.has(repeat.sessionId) || !opened(repeat)) continue;
+      alreadyAlt.add(repeat.sessionId);
+      events.push({ kind: 'altSeatOpened', session: brief(repeat), forSession: brief(fav) });
+    }
   }
 
   return events;

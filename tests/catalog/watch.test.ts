@@ -85,3 +85,54 @@ describe('detectWatchEvents: seatOpened', () => {
     expect(events).toEqual([]);
   });
 });
+
+describe('detectWatchEvents: altSeatOpened', () => {
+  const full = session({ sessionId: 'a', abbreviation: 'SEC401', seatAvailability: 'unavailable' });
+
+  it('満席のお気に入りの再演（-R）に空席表示が出たら altSeatOpened', () => {
+    const repeatBefore = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'unavailable' });
+    const repeatAfter = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'limited' });
+    const events = detectWatchEvents(
+      buildWatchState([full, repeatBefore], at), [full, repeatAfter],
+      ctx({ favoriteIds: new Set(['a']) }),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'altSeatOpened',
+      session: { sessionId: 'b', seat: 'limited' },
+      forSession: { sessionId: 'a' },
+    });
+  });
+
+  it('お気に入り自身が空席表示なら、再演は知らせない', () => {
+    const favOpen = session({ sessionId: 'a', abbreviation: 'SEC401', seatAvailability: 'limited' });
+    const repeatBefore = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'unavailable' });
+    const repeatAfter = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'limited' });
+    const events = detectWatchEvents(
+      buildWatchState([favOpen, repeatBefore], at), [favOpen, repeatAfter],
+      ctx({ favoriteIds: new Set(['a']) }),
+    );
+    expect(events).toEqual([]);
+  });
+
+  it('再演が予約済み・お気に入りなら対象外（お気に入りは seatOpened で知らせる）', () => {
+    const repeatBefore = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'unavailable' });
+    const repeatAfter = session({ sessionId: 'b', abbreviation: 'SEC401-R', seatAvailability: 'limited' });
+    const events = detectWatchEvents(
+      buildWatchState([full, repeatBefore], at), [full, repeatAfter],
+      ctx({ favoriteIds: new Set(['a', 'b']) }),
+    );
+    expect(events.map((e) => e.kind)).toEqual(['seatOpened']);
+  });
+
+  it('同じ再演が複数の満席お気に入りの代替になっても、1回だけ知らせる', () => {
+    const full2 = session({ sessionId: 'c', abbreviation: 'SEC401-R1', seatAvailability: 'unavailable' });
+    const repeatBefore = session({ sessionId: 'b', abbreviation: 'SEC401-R2', seatAvailability: 'unavailable' });
+    const repeatAfter = session({ sessionId: 'b', abbreviation: 'SEC401-R2', seatAvailability: 'available' });
+    const events = detectWatchEvents(
+      buildWatchState([full, full2, repeatBefore], at), [full, full2, repeatAfter],
+      ctx({ favoriteIds: new Set(['a', 'c']) }),
+    );
+    expect(events.filter((e) => e.kind === 'altSeatOpened')).toHaveLength(1);
+  });
+});
