@@ -95,6 +95,33 @@ Claude Code → skill/commands (procedure only) → re:Roadie (all the logic) �
 - MCP tool failures are returned as JSON of the form `{kind, status, operation, message, hint, body}` with `isError: true`. `schedule_apply` runs reserve, favorite, cancel, and unfavorite independently; if one step fails, it continues with the rest and returns a per-step result (`ok`/`error`/`skipped`). Only on an authentication failure (401) does it stop and skip the remaining steps.
 - Write tools (`schedule_apply`/`travel_blocks_apply`/`notes_reminders_apply`) have no confirmation prompt and run immediately when called. Confirmation is the caller's job (Claude via the skill), after showing the diff with the `*_plan` tools.
 
+#### Using it behind a corporate proxy
+
+If your network only reaches the internet through a proxy, the MCP server's requests do not go through it and the connection fails, because Node.js `fetch` does not read the proxy environment variables by default. Set them in the `env` of `.mcp.json` (replace `proxy.example.com:8080` with your proxy):
+
+```json
+{
+  "mcpServers": {
+    "session-roadie": {
+      "command": "node",
+      "args": ["dist/cli.js", "mcp"],
+      "env": {
+        "NODE_USE_ENV_PROXY": "1",
+        "HTTPS_PROXY": "http://proxy.example.com:8080",
+        "HTTP_PROXY": "http://proxy.example.com:8080",
+        "NO_PROXY": "localhost,127.0.0.1"
+      }
+    }
+  }
+}
+```
+
+- `NODE_USE_ENV_PROXY=1` makes `fetch` read `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`. It works on Node.js 24 and later, and on newer 22.x releases (22.21 or later). On an older 22.x, update Node.js.
+- Keep `localhost,127.0.0.1` in `NO_PROXY`. The Builder ID sign-in receives its result on `127.0.0.1` (ports 8484 to 8489).
+- If the proxy requires authentication, put it in the URL as `http://user:password@proxy.example.com:8080`. Do not commit a password in `.mcp.json`.
+- If the proxy inspects traffic with a corporate certificate and you get certificate errors, add `"NODE_EXTRA_CA_CERTS": "/path/to/company-ca.pem"` to `env`.
+- When you run the CLI directly (for example `re-roadie sync`), set the same variables in your shell (`export` on macOS, `$env:` in PowerShell).
+
 #### MCP tools ([src/mcp/server.ts](src/mcp/server.ts), 21 tools)
 
 | Tool | Description |

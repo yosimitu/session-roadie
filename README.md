@@ -119,6 +119,33 @@ Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジ�
 - MCPツールの失敗は、`{kind, status, operation, message, hint, body}` のJSONと `isError: true` で返ります。`schedule_apply` は予約・お気に入り・取消・解除を独立に実行し、ある工程が失敗しても残りを続けて、工程ごとの結果（`ok`/`error`/`skipped`）を返します。認証切れ（401）のときだけ、残りを未実行にして中断します。
 - 書き込み系ツール（`schedule_apply`/`travel_blocks_apply`/`notes_reminders_apply`）は確認プロンプトを持たず、呼ばれたら即実行します。確認は `*_plan` ツールで事前に差分を見せたうえで、呼び出し側（スキル経由のClaude）が担います。
 
+#### 社内ネットワーク（プロキシ経由）で使う場合
+
+プロキシ経由でしか外へ出られない環境では、MCPサーバーの通信がプロキシを通らず、接続に失敗します。Node.js の `fetch` は、既定ではプロキシの環境変数を見ないためです。`.mcp.json` の `env` に、次のように設定します（`proxy.example.com:8080` は、社内のプロキシに置き換えてください）。
+
+```json
+{
+  "mcpServers": {
+    "session-roadie": {
+      "command": "node",
+      "args": ["dist/cli.js", "mcp"],
+      "env": {
+        "NODE_USE_ENV_PROXY": "1",
+        "HTTPS_PROXY": "http://proxy.example.com:8080",
+        "HTTP_PROXY": "http://proxy.example.com:8080",
+        "NO_PROXY": "localhost,127.0.0.1"
+      }
+    }
+  }
+}
+```
+
+- `NODE_USE_ENV_PROXY=1` が、`HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` を `fetch` に読ませる設定です。Node.js 24 以降と、22 系の新しい版（22.21 以降）で使えます。古い 22 系では、Node.js を更新してください。
+- `NO_PROXY` に `localhost,127.0.0.1` を入れておきます。Builder ID のサインインは、手元の `127.0.0.1`（ポート 8484〜8489）で結果を受け取るためです。
+- プロキシがユーザー認証を求める場合は、URL に `http://ユーザー名:パスワード@proxy.example.com:8080` の形で書けます。パスワードを `.mcp.json` に書いたままコミットしないでください。
+- 社内プロキシが独自の証明書で通信を検査していて、証明書のエラーが出る場合は、`env` に `"NODE_EXTRA_CA_CERTS": "/path/to/company-ca.pem"` を足します。
+- CLI（`re-roadie sync` など）を直接使うときは、同じ環境変数をシェルに設定します（macOS は `export`、PowerShell は `$env:` を使います）。
+
 #### MCPツール一覧（[src/mcp/server.ts](src/mcp/server.ts)、21個）
 
 | ツール | 内容 |
