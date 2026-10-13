@@ -144,6 +144,77 @@ The skill is written for Japanese, so the example prompts below are in Japanese,
 
 Free-form text is fine for all of these; you do not need to give session IDs or tool names (Claude interprets the intent and proceeds as `*_plan` diff, confirmation, `*_apply`). More examples are in the [Appendix: Useful phrases](#appendix-useful-phrases).
 
+## Example: from preparation to the event
+
+An attendee who wants to focus on Lambda and serverless talks to Claude Code. Claude's replies are illustrative, not literal output. The session names and IDs are real catalog entries.
+
+### Preparation (first time)
+
+> **You**: This is my first time attending. I want to focus on serverless. Onboard me.
+>
+> **Claude**: Asks for your attendance days, preferred levels, and whether to exclude sponsored sessions, then saves your profile.
+
+> **You**: Are there any sessions about running web apps on Lambda?
+>
+> **Claude**: Finds "Build interactive web apps with AWS Lambda" (SVS327-R1, 12/2 09:00, chalk talk) and the same session as SVS327-R (12/3 13:30).
+
+### Build the schedule
+
+> **You**: Plan my 12/2 around serverless.
+>
+> **Claude**: Drafts a plan from the candidates, shows the diff (what it will newly reserve and cancel) and asks for confirmation. The plan has the form `{ "reserve": [...], "favorite": [...] }`.
+
+> **You**: OK, apply it.
+>
+> **Claude**: Reserves the sessions and reports any failure with its reason (for example `sessionFull`). After applying, it re-reads your actual schedule and checks that no difference remains.
+
+### Tidy the schedule
+
+> **You**: Do any of my sessions overlap?
+>
+> **Claude**: Shows the overlapping reservations, with repeats and similar sessions as material for deciding which to drop.
+
+> **You**: Block travel time.
+>
+> **Claude**: Between sessions at different venues, adds a personal-time block of only the minutes needed, starting right after the previous session ends.
+
+> **You**: Add an Expo walk-through on 12/1 from 11:00 to 12:00.
+>
+> **Claude**: Registers it as a personal-time entry.
+
+> **You**: Show me.
+>
+> **Claude**: Writes your schedule, the session list, and an overview to `data/schedule.html` (read-only).
+
+### Every day: watch for seats, new sessions, and changes
+
+Run `re-roadie watch --notify` daily (with launchd on macOS, cron, or similar) to be notified of:
+- a change in the seat display of a full favorite (or its repeat)
+- new sessions that match your profile
+- venue or time changes, and cancellations, of your reservations and favorites
+
+When a notification arrives, ask:
+
+> **You**: Reserve SVS327-R1.
+>
+> **Claude**: Shows the diff and reserves after you confirm. If the session is full, reports `sessionFull`.
+
+A changed seat display does not guarantee a reservation. `watch` never reserves anything.
+
+### At the event (December)
+
+> **You**: What is on my schedule today?
+>
+> **Claude**: Lists your reservations, travel blocks, and notes in time order.
+
+> **You**: Add a note to SVS327-R1: "try the Hono adapter".
+>
+> **You**: Write my post-trip report.
+>
+> **Claude**: Summarizes your notes and the sessions you attended.
+
+Anything that changes your reservations or schedule shows a diff and asks for confirmation first.
+
 ## Current limitations
 
 - **`ReserveSessions` was rejected with HTTP 409 "This operation is currently disabled" on the opening day (2026-10-08), but worked on 2026-10-11 and one reservation succeeded.** Cancelling that reservation (`CancelReservation`) also succeeded the same day (the post-apply `GetSchedule` check matched in both cases). A full session is returned as `sessionFull` in `failed[].code`. Even when `seatAvailability` is `limited` or similar, a session can be full, so the seat display does not guarantee that a reservation will succeed.
