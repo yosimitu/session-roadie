@@ -213,7 +213,7 @@ A changed seat display does not guarantee a reservation. `watch` never reserves 
 >
 > **Claude**: Summarizes your notes and the sessions you attended.
 
-Anything that changes your reservations or schedule shows a diff and asks for confirmation first.
+Anything that changes your reservations or schedule shows a diff and asks for confirmation first. Example phrases, grouped by purpose, are in the [Appendix: Useful phrases](#appendix-useful-phrases).
 
 ## Current limitations
 
