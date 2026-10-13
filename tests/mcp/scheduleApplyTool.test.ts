@@ -6,7 +6,13 @@ vi.mock('../../src/runtimeContext.js', async (importOriginal) => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('../../src/schedule/backup.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/schedule/backup.js')>()),
+  saveScheduleBackup: vi.fn(() => '/tmp/schedule-backup-test.json'),
+}));
+
 import { createClient } from '../../src/runtimeContext.js';
+import { saveScheduleBackup } from '../../src/schedule/backup.js';
 import { scheduleApplyTool } from '../../src/mcp/tools.js';
 
 const emptySchedule = { schedule: { reserved: [], favorites: [], personalTime: [] } };
@@ -14,6 +20,7 @@ const emptySchedule = { schedule: { reserved: [], favorites: [], personalTime: [
 describe('scheduleApplyTool', () => {
   beforeEach(() => {
     vi.mocked(createClient).mockReset();
+    vi.mocked(saveScheduleBackup).mockClear();
   });
 
   it('plan・result・remainingPlanを合成して返す', async () => {
@@ -29,6 +36,30 @@ describe('scheduleApplyTool', () => {
     expect(out.result.reserve).toEqual({ ok: true, value: { successful: ['s1'], failed: [] } });
     expect(out).toHaveProperty('remainingPlan');
     expect(out).not.toHaveProperty('reconcileError');
+    expect(saveScheduleBackup).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ backupPath: '/tmp/schedule-backup-test.json' });
+  });
+
+  it('差分が無いときはバックアップを作らない', async () => {
+    const get = vi.fn().mockResolvedValue(emptySchedule);
+    vi.mocked(createClient).mockResolvedValue({ get } as never);
+
+    const out = await scheduleApplyTool(undefined, undefined);
+
+    expect(saveScheduleBackup).not.toHaveBeenCalled();
+    expect(out).not.toHaveProperty('backupPath');
+  });
+
+  it('バックアップを保存できなければ、書き込みに進まず例外にする', async () => {
+    const get = vi.fn().mockResolvedValue(emptySchedule);
+    const postJson = vi.fn();
+    vi.mocked(createClient).mockResolvedValue({ get, postJson } as never);
+    vi.mocked(saveScheduleBackup).mockImplementationOnce(() => {
+      throw new Error('disk full');
+    });
+
+    await expect(scheduleApplyTool(['s1'], undefined)).rejects.toThrow('disk full');
+    expect(postJson).not.toHaveBeenCalled();
   });
 
   it('実行後の再照合が失敗しても、実行結果を失わずreconcileErrorを返す', async () => {

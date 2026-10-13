@@ -25,6 +25,7 @@ import {
 import type { FixedEvent } from './profile/profileStore.js';
 import { findConflicts, findPersonalTimeConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
+import { hasPlanChanges, saveScheduleBackup } from './schedule/backup.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
 import { loadProfile } from './profile/profileStore.js';
@@ -287,8 +288,7 @@ program
       const before = await runScheduleStatus(client, options.eventId);
       const plan = reconcile(desired, before);
 
-      const hasChanges = [plan.toReserve, plan.toCancelReservation, plan.toFavorite, plan.toUnfavorite].some((l) => l.length > 0);
-      if (!hasChanges) {
+      if (!hasPlanChanges(plan)) {
         console.log('現在の状態は意図と一致しています。');
         return;
       }
@@ -303,6 +303,9 @@ program
         console.log('キャンセルしました。');
         return;
       }
+
+      const backupPath = saveScheduleBackup(options.eventId, before, DATA_DIR);
+      console.log(`実行前の予約・お気に入りを保存しました: ${backupPath}`);
 
       const result = await executeReconcilePlan(client, options.eventId, plan);
       printBulkStep('予約', result.reserve);

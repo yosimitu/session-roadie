@@ -5,6 +5,7 @@ import { runSync, runSyncSince } from '../commands/sync.js';
 import { runAuthStatus } from '../commands/authStatus.js';
 import { runScheduleStatus } from '../commands/scheduleStatus.js';
 import { reconcile } from '../schedule/reconcile.js';
+import { hasPlanChanges, saveScheduleBackup } from '../schedule/backup.js';
 import { executeReconcilePlan, verifyAfterApply } from '../commands/applyPlan.js';
 import { buildTravelBlockPlan, applyTravelBlocks } from '../commands/travelBlocks.js';
 import { buildNoteReminderPlan, applyNoteReminders } from '../commands/noteReminders.js';
@@ -109,9 +110,10 @@ export async function scheduleApplyTool(reserve: string[] | undefined, favorite:
   const desired = { reserve, favorite };
   const before = await runScheduleStatus(client, id);
   const plan = reconcile(desired, before);
+  const backupPath = hasPlanChanges(plan) ? saveScheduleBackup(id, before, DATA_DIR) : undefined;
   const result = await executeReconcilePlan(client, id, plan);
   const verify = await verifyAfterApply(client, id, desired);
-  return { plan, result, ...verify };
+  return { plan, result, ...(backupPath ? { backupPath } : {}), ...verify };
 }
 
 /**
