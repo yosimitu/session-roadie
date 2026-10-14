@@ -124,12 +124,16 @@ describe('recommendSessions: おすすめにしない条件', () => {
     const map = rec([
       reserved,
       s('tight', [SEC], { time: '11:10', venue: 'Wynn/Encore' }), // 空き10分 < 30分
-      s('ok', [SEC], { time: '11:40', venue: 'Wynn/Encore' }), // 空き40分
-      s('same', [SEC], { time: '11:00', venue: 'MGM Grand' }), // 同じ会場なら続けて入れる
+      s('almost', [SEC], { time: '11:35', venue: 'Wynn/Encore' }), // 空き35分 < 移動30分 + 到着10分
+      s('ok', [SEC], { time: '11:40', venue: 'Wynn/Encore' }), // 空き40分（移動30分 + 到着10分）
+      s('same', [SEC], { time: '11:10', venue: 'MGM Grand' }), // 同じ会場でも、開始の10分前に着ける間隔は要る
+      s('back', [SEC], { time: '11:00', venue: 'MGM Grand' }), // 同じ会場で、終了と同時に開始: 10分前に着けない
     ], { reservedIds: ['r'] });
     expect(map.has('tight')).toBe(false);
+    expect(map.has('almost')).toBe(false);
     expect(map.has('ok')).toBe(true);
     expect(map.has('same')).toBe(true);
+    expect(map.has('back')).toBe(false);
   });
 
   it('体力から決まる、セッション間の最低空き時間を満たさないものは、おすすめにしない', () => {

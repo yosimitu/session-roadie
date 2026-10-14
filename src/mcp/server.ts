@@ -98,7 +98,7 @@ export function createServer(): McpServer {
   }, async ({ eventId, since, keywords, limit }) => safely(() => catalogTrendsTool(eventId, since, keywords, limit)));
 
   server.registerTool('sessions_now', {
-    description: 'いまから間に合うセッションを返す。開始が「いま＋現在地からの移動時間」以降で、withinMinutes（既定90）以内に始まり、予約・個人予定と重ならず、満席表示でないもの。お気に入り・関心トピック・空席の多い順。現在地は venue か、開催中・直近に終わった予約の会場から決める。walkUp は当日会場で並ぶ形式と思われるが未確認。予約は実行しない。空席表示は予約できることを保証しない',
+    description: 'いまから間に合うセッションを返す。items は、開始が「いま＋現在地からの移動時間＋10分」以降（予約した席は開始の10分前までに部屋に着かないと譲られる）で、withinMinutes（既定90）以内に始まり、予約・個人予定と重ならず、前後の予約との間に移動時間と10分が取れる、満席表示でないもの。お気に入り・関心トピック・空席の多い順。queue は満席表示のもので、公式 FAQ では各セッションに当日並ぶ人向けの席が一部残されており、現地の列に並べば入れる場合があるが、席は保証されない（「入れる」と断定しない）。現在地は venue か、開催中・直近に終わった予約の会場から決める。isReservable が false のものは予約の対象外と注記される。walkUp は当日会場で並ぶ形式と思われるが未確認。予約は実行しない。空席表示は予約できることを保証しない',
     inputSchema: {
       ...eventIdParam,
       at: z.string().optional().describe('会場の現地時刻 "YYYY-MM-DD HH:MM"。省略時は現在時刻（会期外の確認や試しに使う）'),

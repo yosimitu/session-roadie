@@ -350,7 +350,7 @@ program
         console.log(`警告: ローカルスナップショットに無いセッションがあります（先に sync を実行してください）: ${plan.missingSessionIds.join(', ')}`);
       }
       for (const blk of plan.insufficientBlocks) {
-        console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.requiredMinutes}分 / 空き${blk.result.availableMinutes}分）`);
+        console.log(`⚠ ${blk.from.sessionId} → ${blk.to.sessionId}: 移動時間が不足（必要${blk.result.neededMinutes}分＝移動${blk.result.requiredMinutes}分＋開始${blk.result.arrivalBufferMinutes}分前までの到着 / 空き${blk.result.availableMinutes}分）`);
       }
 
       if (plan.candidates.length === 0) {

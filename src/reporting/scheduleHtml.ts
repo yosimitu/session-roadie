@@ -179,7 +179,7 @@ function buildItems(input: ScheduleHtmlInput): { items: Item[]; missing: string[
     if (block.result.sufficient) continue;
     itemFor.get(block.to.sessionId)?.tags.push({
       cls: 'warn',
-      text: `⚠ 移動不足（必要 ${block.result.requiredMinutes}分 / 空き ${block.result.availableMinutes}分）`,
+      text: `⚠ 移動不足（必要 ${block.result.neededMinutes}分＝移動${block.result.requiredMinutes}分＋開始${block.result.arrivalBufferMinutes}分前までの到着 / 空き ${block.result.availableMinutes}分）`,
     });
   }
 

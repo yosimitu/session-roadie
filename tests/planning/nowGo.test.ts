@@ -31,28 +31,71 @@ describe('findSessionsNow', () => {
     expect(result.items.map((i) => i.sessionId)).toEqual(['near']);
   });
 
-  it('満席（unavailable）と予約済みは除き、walkUp は注記つきで残す', () => {
+  it('開始の10分前までに着けないものは除く（移動時間に到着の余裕10分を足す）', () => {
     const sessions = [
-      session('full', '10:30', { seatAvailability: 'unavailable' }),
-      session('mine', '10:30'),
-      session('walk', '11:30', { seatAvailability: 'walkUp' }), // 予約の終了直後。同じ会場で移動なし
+      session('in9', '10:09'), // あと9分: 同じ会場でも間に合わない
+      session('in10', '10:10'), // あと10分: ちょうど間に合う
+      session('mgm35', '10:35', { venue: 'MGM Grand' }), // Venetian→MGM 30分 + 10分 = 40分 > 35分
+      session('mgm40', '10:40', { venue: 'MGM Grand' }), // 40分で間に合う
     ];
-    const reserved = [sessions[1]];
+    const result = findSessionsNow({ ...base, sessions, now: at('10:00'), currentVenue: 'Venetian' });
+    expect(result.items.map((i) => i.sessionId)).toEqual(['in10', 'mgm40']);
+    expect(result.arrivalBufferMinutes).toBe(10);
+    expect(result.notes.join()).toContain('10分前までに部屋に着かないと');
+  });
+
+  it('予約済みは除き、walkUp は注記つきで残す', () => {
+    const sessions = [
+      session('mine', '10:10'),
+      session('walk', '11:20', { seatAvailability: 'walkUp' }), // 予約の終了（11:10）の10分後。同じ会場で移動なし
+    ];
+    const reserved = [sessions[0]];
     const result = findSessionsNow({ ...base, sessions, reserved, now: at('10:00'), currentVenue: 'Venetian' });
     expect(result.items.map((i) => i.sessionId)).toEqual(['walk']);
     expect(result.items[0].notes.join()).toContain('walkUp');
   });
 
-  it('予約と重なるセッション、次の予約への移動が間に合わないセッションは除く', () => {
-    const next = session('next', '11:30', { venue: 'Wynn/Encore' });
+  it('満席表示は本体に入れず、現地の列（walk-up）の候補として別枠に出す', () => {
+    const sessions = [
+      session('open', '10:30', { seatAvailability: 'limited' }),
+      session('full', '10:20', { seatAvailability: 'unavailable', topics: ['Security & Identity'] }),
+      session('fullFar', '10:30', { seatAvailability: 'unavailable', venue: 'MGM Grand' }), // 40分必要なので間に合わない
+    ];
+    const result = findSessionsNow({ ...base, sessions, now: at('10:00'), currentVenue: 'Venetian' });
+    expect(result.items.map((i) => i.sessionId)).toEqual(['open']);
+    expect(result.queue.map((i) => i.sessionId)).toEqual(['full']);
+    expect(result.queue[0].notes.join()).toContain('現地の列（walk-up）');
+    expect(result.queue[0].notes.join()).toContain('席は保証されません');
+  });
+
+  it('満席表示の別枠も、予約・個人予定との重なりと、件数の上限を守る', () => {
+    const mine = session('mine', '10:20');
+    const fulls = ['a', 'b', 'c'].map((id, i) => session(id, `11:${30 + i * 5}`, { seatAvailability: 'unavailable' })); // mine の終了（11:20）の10分後から
+    const overlap = session('overlap', '10:30', { seatAvailability: 'unavailable' }); // mine（10:20-11:20）と重なる
+    const result = findSessionsNow({
+      ...base, sessions: [mine, overlap, ...fulls], reserved: [mine], now: at('10:00'), currentVenue: 'Venetian', withinMinutes: 120, queueLimit: 2,
+    });
+    expect(result.queue).toHaveLength(2);
+    expect(result.queue.map((i) => i.sessionId)).not.toContain('overlap');
+  });
+
+  it('予約できない形式（isReservable が false）は、その旨を注記する', () => {
+    const sessions = [session('expo', '10:30', { isReservable: false })];
+    const result = findSessionsNow({ ...base, sessions, now: at('10:00'), currentVenue: 'Venetian' });
+    expect(result.items[0].notes.join()).toContain('予約の対象外');
+  });
+
+  it('予約と重なるセッション、次の予約への移動と到着の余裕が取れないセッションは除く', () => {
+    const next = session('next', '12:00', { venue: 'Wynn/Encore' });
     const sessions = [
       next,
-      session('overlap', '11:00'), // 11:00-12:00 で next と重なる
-      session('tight', '10:20', { sessionTime: { date: '2026-12-02', time: '10:20', length: '60' } }), // 11:20 終了。Venetian→Wynn 15分が取れない
-      session('ok', '10:10', { sessionTime: { date: '2026-12-02', time: '10:10', length: '60' } }), // 11:10 終了。20分の余裕
+      session('overlap', '12:30'), // 12:00-13:00 で next と重なる
+      session('tight', '10:50'), // 11:50 終了。Venetian→Wynn 15分 + 到着10分 = 25分 のところ、空きは10分
+      session('edge', '10:35'), // 11:35 終了。空きがちょうど25分
+      session('ok', '10:10'), // 11:10 終了。50分の余裕
     ];
     const result = findSessionsNow({ ...base, sessions, reserved: [next], now: at('10:00'), currentVenue: 'Venetian' });
-    expect(result.items.map((i) => i.sessionId)).toEqual(['ok']);
+    expect(result.items.map((i) => i.sessionId)).toEqual(['ok', 'edge']);
   });
 
   it('お気に入りと関心のあるトピックを先に並べる', () => {

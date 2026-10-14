@@ -17,6 +17,13 @@ const TRAVEL_MINUTES: Record<string, Record<string, number>> = {
   MGM: { Venetian: 30, Wynn: 30, 'Caesars Palace': 20, 'Caesars Forum': 30 },
 };
 
+/**
+ * 予約した席は、開始の10分前までに部屋に着かないと、当日並ぶ人（walk-up）に譲られる
+ * （公式 FAQ "If I reserve a seat, is my spot guaranteed?"、2026-10-14 に確認）。
+ * そのため、連続するセッションの間には、移動時間に加えて、この分だけの余裕が要る。
+ */
+export const ARRIVAL_BUFFER_MINUTES = 10;
+
 /** 未知の会場ペアは安全側（テーブルの最長30分を上回る40分）に倒す */
 const UNKNOWN_VENUE_FALLBACK_MINUTES = 40;
 

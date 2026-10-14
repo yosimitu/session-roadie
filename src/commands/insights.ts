@@ -3,7 +3,7 @@ import type { Session } from '../api/types.js';
 import type { Profile } from '../profile/profileStore.js';
 import { loadSnapshot } from '../catalog/store.js';
 import { loadSeatHistory } from '../catalog/seatHistory.js';
-import { findSessionsNow, type NowGoResult } from '../planning/nowGo.js';
+import { findSessionsNow, type NowGoItem, type NowGoResult } from '../planning/nowGo.js';
 import { forecastSeats, type ForecastItem, type ForecastResult } from '../planning/seatForecast.js';
 import { suggestDetours, type DetourResult } from '../planning/detour.js';
 import { VENUE_UTC_OFFSET_HOURS } from '../schedule/sessionTimeUtc.js';
@@ -90,10 +90,15 @@ function monthDay(date?: string): string {
 
 export function formatNowGo(result: NowGoResult): string[] {
   const lines = [`現地時刻 ${result.nowLocal.replace('T', ' ').slice(0, 16)}${result.currentVenue ? `、現在地 ${result.currentVenue}` : ''}（${result.withinMinutes}分以内に始まるもの）`];
-  if (result.items.length === 0) lines.push('いまから間に合うセッションは見つかりませんでした。');
-  for (const i of result.items) {
+  if (result.items.length === 0) lines.push('いまから間に合うセッション（満席表示でないもの）は見つかりませんでした。');
+  const line = (i: NowGoItem) => {
     const travel = i.travelMinutes > 0 ? `、移動${i.travelMinutes}分` : '';
-    lines.push(`  ${i.time}（あと${i.startsInMinutes}分${travel}）[${seatText(i.seatAvailability)}] ${label(i)} @${i.venue ?? '会場不明'}${i.notes.length ? `  ※${i.notes.join('／')}` : ''}`);
+    return `  ${i.time}（あと${i.startsInMinutes}分${travel}）[${seatText(i.seatAvailability)}] ${label(i)} @${i.venue ?? '会場不明'}${i.notes.length ? `  ※${i.notes.join('／')}` : ''}`;
+  };
+  for (const i of result.items) lines.push(line(i));
+  if (result.queue.length > 0) {
+    lines.push('満席表示（現地の列に並べば入れる場合があります。席は保証されません）:');
+    for (const i of result.queue) lines.push(line(i));
   }
   for (const note of result.notes) lines.push(note);
   return lines;

@@ -79,10 +79,10 @@ describe('buildScheduleHtml', () => {
 
   it('移動時間が足りない連続セッションに「移動不足」を付ける', () => {
     const m = session('m', 'AIM111', '2026-12-02', '10:00', '60', 'MGM Grand');
-    const w = session('w', 'AIM112', '2026-12-02', '11:10', '60', 'Wynn/Encore'); // 空き10分 < 必要30分
+    const w = session('w', 'AIM112', '2026-12-02', '11:10', '60', 'Wynn/Encore'); // 空き10分 < 必要40分（移動30分＋到着10分）
     const out = html(schedule(['m', 'w']), [m, w]);
     expect(out).toContain('移動不足');
-    expect(out).toContain('必要 30分');
+    expect(out).toContain('必要 40分＝移動30分＋開始10分前までの到着');
     expect(out).toContain('空き 10分');
   });
 

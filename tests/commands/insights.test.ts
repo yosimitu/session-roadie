@@ -52,6 +52,21 @@ describe('insights runners', () => {
     expect(lines.join('\n')).toContain('お気に入り');
   });
 
+  it('formatNowGo: 満席表示は別の見出しで、席が保証されないことを添えて出す', async () => {
+    saveSnapshot('e', [s('open', '10:30', 'limited'), s('full', '10:20', 'unavailable')], dir, '2026-10-13');
+    const result = await runNowGo(fakeClient({ reserved: [], favorites: [] }), 'e', dir, undefined, {
+      now: parseVenueLocalTime('2026-12-02 10:00'), venue: 'Venetian',
+    });
+    const lines = formatNowGo(result);
+    const text = lines.join('\n');
+    const head = lines.findIndex((l) => l.startsWith('満席表示（現地の列に並べば入れる場合があります'));
+    expect(head).toBeGreaterThan(0);
+    expect(lines[head]).toContain('席は保証されません');
+    expect(lines.slice(head + 1).find((l) => l.includes('T-full'))).toBeDefined();
+    expect(lines.slice(0, head).find((l) => l.includes('T-open'))).toBeDefined();
+    expect(text).toContain('10分前までに部屋に着かないと');
+  });
+
   it('runSeatForecast: 履歴の最新の観測を、カタログの空席表示に上書きして使う', async () => {
     saveSnapshot('e', [s('a', '09:00', 'available')], dir, '2026-10-07');
     saveSnapshot('e', [s('a', '09:00', 'limited')], dir, '2026-10-10'); // sync の最新

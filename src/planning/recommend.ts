@@ -2,7 +2,7 @@ import type { Session } from '../api/types.js';
 import type { Profile } from '../profile/profileStore.js';
 import { INTEREST_OPTIONS } from '../onboarding/wizard.js';
 import { JA_LABELS } from '../reporting/jaLabels.js';
-import { getTravelMinutes } from '../schedule/travelTime.js';
+import { ARRIVAL_BUFFER_MINUTES, getTravelMinutes } from '../schedule/travelTime.js';
 import { isSponsored } from '../catalog/search.js';
 import { optimizeDefaultsFromProfile } from './preferences.js';
 
@@ -144,7 +144,7 @@ export function recommendSessions(input: RecommendInput): RecommendResult {
       if (overlaps(slot, r.slot)) return true;
       const gap = slot.start >= r.slot.end ? slot.start - r.slot.end : r.slot.start - slot.end;
       const travel = r.session.venue && s.venue ? getTravelMinutes(r.session.venue, s.venue) : 0;
-      if (gap < Math.max(travel, minGap)) return true;
+      if (gap < Math.max(travel + ARRIVAL_BUFFER_MINUTES, minGap)) return true; // 席は開始の10分前までに着かないと譲られる
     }
     return false;
   };

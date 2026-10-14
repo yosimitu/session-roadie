@@ -70,10 +70,29 @@ describe('optimizeSchedule', () => {
     expect(withoutTravel.reserve).toHaveLength(2);
   });
 
-  it('同じ会場なら連続でも両立する', () => {
+  it('同じ会場なら、開始の10分前に着ける間隔があれば両立する', () => {
+    const a = session('a', 'AIM101', '2026-12-01', '11:30', '60', 'MGM');
+    const b = session('b', 'AIM102', '2026-12-01', '12:40', '60', 'MGM'); // 終了の10分後に開始
+    expect(optimizeSchedule(['a', 'b'], [a, b], []).reserve).toHaveLength(2);
+  });
+
+  it('終了と同時に始まる連続セッションは、同じ会場でも両立させない（席は開始の10分前までに着かないと譲られる）', () => {
     const a = session('a', 'AIM101', '2026-12-01', '11:30', '60', 'MGM');
     const b = session('b', 'AIM102', '2026-12-01', '12:30', '60', 'MGM');
-    expect(optimizeSchedule(['a', 'b'], [a, b], []).reserve).toHaveLength(2);
+    const result = optimizeSchedule(['a', 'b'], [a, b], []);
+    expect(result.reserve).toHaveLength(1);
+    expect(result.dropped[0].options[0].blockedBy[0]).toMatchObject({ kind: 'session', requiredTravelMinutes: 0, arrivalBufferMinutes: 10 });
+
+    // 移動時間を考慮しない指定では、到着の余裕も見込まない
+    expect(optimizeSchedule(['a', 'b'], [a, b], [], { considerTravelTime: false }).reserve).toHaveLength(2);
+  });
+
+  it('別会場は、移動時間に10分を足した間隔が要る（Caesars Palace→MGM 20分なら30分）', () => {
+    const a = session('a', 'AIM101', '2026-12-01', '11:30', '60', 'Caesars Palace');
+    const gap25 = session('b', 'AIM102', '2026-12-01', '12:55', '60', 'MGM'); // 空き25分
+    const gap30 = session('c', 'AIM103', '2026-12-01', '13:00', '60', 'MGM'); // 空き30分
+    expect(optimizeSchedule(['a', 'b'], [a, gap25], []).reserve).toHaveLength(1);
+    expect(optimizeSchedule(['a', 'c'], [a, gap30], []).reserve).toHaveLength(2);
   });
 
   it('カタログに無いIDと時刻情報の無いセッションを分けて返す', () => {
@@ -145,7 +164,7 @@ describe('optimizeSchedule', () => {
     const early = session('early', 'AIM101', '2026-12-01', '08:00');
     const morning = session('morning', 'AIM102', '2026-12-01', '10:00');
     const lunch = session('lunch', 'AIM103', '2026-12-01', '12:30');
-    const lunchStart = session('lunchStart', 'AIM104', '2026-12-01', '11:30'); // 11:30-12:30 が昼休みと重なる
+    const lunchStart = session('lunchStart', 'AIM104', '2026-12-01', '11:20'); // 11:20-12:20 が昼休みと重なる（lunch の開始 12:30 まで10分あく）
     const evening = session('evening', 'AIM105', '2026-12-01', '18:30');
     const all = [early, morning, lunch, lunchStart, evening];
     const ids = all.map((s) => s.sessionId);

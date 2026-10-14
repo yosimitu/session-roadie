@@ -56,18 +56,34 @@ describe('computeTravelBlock', () => {
     expect(result?.personalTime).toBeUndefined();
   });
 
-  it('同一会場なら移動時間0分で、空き時間に関わらずブロックを生成しない', () => {
+  it('同一会場なら移動時間0分で、ブロックを生成しない（開始の10分前に着ける間隔があれば足りる）', () => {
     const a = session({
       sessionId: 'a', venue: 'Venetian',
       sessionTime: { date: '2026-12-02', time: '10:00', length: '60' },
     });
     const b = session({
       sessionId: 'b', venue: 'Venetian',
-      sessionTime: { date: '2026-12-02', time: '11:00', length: '60' },
+      sessionTime: { date: '2026-12-02', time: '11:10', length: '60' },
     });
     const result = computeTravelBlock(a, b);
     expect(result?.sufficient).toBe(true);
     expect(result?.requiredMinutes).toBe(0);
+    expect(result?.neededMinutes).toBe(10);
+    expect(result?.personalTime).toBeUndefined();
+  });
+
+  it('終了と同時に始まる連続セッションは、同一会場でも不足とする（席は開始の10分前までに着かないと譲られる）', () => {
+    const a = session({ sessionId: 'a', venue: 'Venetian', sessionTime: { date: '2026-12-02', time: '10:00', length: '60' } });
+    const b = session({ sessionId: 'b', venue: 'Venetian', sessionTime: { date: '2026-12-02', time: '11:00', length: '60' } });
+    const result = computeTravelBlock(a, b);
+    expect(result).toMatchObject({ sufficient: false, requiredMinutes: 0, arrivalBufferMinutes: 10, neededMinutes: 10, availableMinutes: 0 });
+  });
+
+  it('移動時間はちょうどでも、到着の余裕が取れなければ不足とする（Venetian→Wynn 15分に対して空き20分）', () => {
+    const a = session({ sessionId: 'a', venue: 'Venetian', sessionTime: { date: '2026-12-02', time: '10:00', length: '60' } });
+    const b = session({ sessionId: 'b', venue: 'Wynn', sessionTime: { date: '2026-12-02', time: '11:20', length: '60' } });
+    const result = computeTravelBlock(a, b);
+    expect(result).toMatchObject({ sufficient: false, requiredMinutes: 15, neededMinutes: 25, availableMinutes: 20 });
     expect(result?.personalTime).toBeUndefined();
   });
 

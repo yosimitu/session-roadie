@@ -2,7 +2,7 @@ import type { PersonalTime, Session } from '../api/types.js';
 import type { FixedEvent } from '../profile/profileStore.js';
 import { sessionStartUtc, sessionEndUtc } from '../schedule/sessionTimeUtc.js';
 import { blockingPersonalTimes, personalTimeRangeUtc } from '../schedule/blockingPersonalTime.js';
-import { getTravelMinutes } from '../schedule/travelTime.js';
+import { ARRIVAL_BUFFER_MINUTES, getTravelMinutes } from '../schedule/travelTime.js';
 import { baseAbbreviation } from './alternatives.js';
 
 // 候補セッション（「見たいもの」）から、再演への差し替えと個人予定（基調講演など）を考慮して、
@@ -23,7 +23,7 @@ export interface OptimizeOptions {
 }
 
 export type Blocker =
-  | { kind: 'session'; sessionId: string; title: string; requiredTravelMinutes?: number; minGapMinutes?: number }
+  | { kind: 'session'; sessionId: string; title: string; requiredTravelMinutes?: number; arrivalBufferMinutes?: number; minGapMinutes?: number }
   | { kind: 'personalTime'; personalTimeId: string; title: string }
   | { kind: 'outsideAttendance'; date: string }
   | { kind: 'dailyLimit'; date: string; limit: number }
@@ -115,10 +115,12 @@ function slotBlocker(a: Slot, b: Slot, considerTravelTime: boolean, minGapMinute
   const travel = considerTravelTime && first.session.venue && second.session.venue
     ? getTravelMinutes(first.session.venue, second.session.venue)
     : 0;
-  if (gap >= Math.max(travel, minGapMinutes) * 60_000) return undefined;
+  // 席は開始の10分前までに着かないと譲られるので、移動時間に到着の余裕を足す（移動時間を考慮するときだけ）
+  const arrival = considerTravelTime ? ARRIVAL_BUFFER_MINUTES : 0;
+  if (gap >= Math.max(travel + arrival, minGapMinutes) * 60_000) return undefined;
   return {
     ...base,
-    ...(gap < travel * 60_000 ? { requiredTravelMinutes: travel } : {}),
+    ...(gap < (travel + arrival) * 60_000 ? { requiredTravelMinutes: travel, ...(arrival > 0 ? { arrivalBufferMinutes: arrival } : {}) } : {}),
     ...(gap < minGapMinutes * 60_000 ? { minGapMinutes } : {}),
   };
 }
