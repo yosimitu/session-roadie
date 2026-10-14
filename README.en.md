@@ -42,6 +42,30 @@ npm run build
 
 Run all later commands from the repository root (`session-roadie`). `data/` is created relative to the current working directory.
 
+## Updating
+
+From the repository root, run:
+
+```bash
+git pull
+npm install
+npm run build
+```
+
+What runs is the code in `dist/`, so skipping `npm run build` leaves the old version in place. Then, depending on how you use it:
+
+| How you use it | What to do after updating |
+| --- | --- |
+| From Claude Code (MCP) | Restart Claude Code. A running server keeps the old code and cannot use new tools |
+| Running `watch` on a schedule | Nothing. The next run uses the new `dist/` |
+| Using the CLI directly | Nothing; it works as is |
+
+- Everything under `data/` (your sign-in in `data/token.json`, profile, notes, catalog snapshots, and so on) is covered by `.gitignore`, so `git pull` does not overwrite it. You normally do not need to sign in again.
+- If `git pull` fails, a file you edited locally is the cause. Check with `git status` and set aside changes you want to keep with `git stash`.
+- If the build fails, your Node.js may be older than 22. Check with `node -v`.
+- If you installed from a zip, `git pull` is not available. Extract the new zip to a separate folder, copy your `data/` into it, and run `npm install && npm run build`.
+- To go back to an earlier version, find the commit with `git log`, run `git checkout <commit>`, and rebuild.
+
 ## Usage
 
 On first use, an interactive wizard creates a simple profile and intent, and you sign in with Builder ID. You do not need to write YAML by hand.
