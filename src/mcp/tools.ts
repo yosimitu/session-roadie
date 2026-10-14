@@ -26,6 +26,7 @@ import { runScheduleView } from '../commands/scheduleView.js';
 import type { Session } from '../api/types.js';
 import { runWatchOnce } from '../commands/watch.js';
 import { formatWatchEvents } from '../commands/watchReport.js';
+import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from '../commands/insights.js';
 
 // MCPツールのハンドラ本体。「ロジックは全部ここ」という方針（Claude Code → スキル/コマンド →
 // re:Roadie → AWS Events REST API）に従い、McpServerへの配線（src/mcp/server.ts）とは独立させて
@@ -77,6 +78,29 @@ export async function catalogWatchTool(eventId?: string) {
   const client = await createClient();
   const result = await runWatchOnce(client, resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH));
   return { ...result, lines: formatWatchEvents(result.events) };
+}
+
+/**
+ * いまから間に合うセッション。at は会場の現地時刻 "YYYY-MM-DD HH:MM"（省略時は現在時刻。会期外の確認や試しに使う）。
+ * 予約は実行しない。空席表示は予約できることを保証しない。
+ */
+export async function sessionsNowTool(eventId?: string, at?: string, venue?: string, withinMinutes?: number, limit?: number) {
+  const now = at === undefined ? undefined : parseVenueLocalTime(at);
+  if (at !== undefined && !now) throw new Error(`at は "YYYY-MM-DD HH:MM"（会場の現地時刻）の形で指定してください: "${at}"`);
+  const result = await runNowGo(await createClient(), resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH), { now, venue, withinMinutes, limit });
+  return { ...result, lines: formatNowGo(result) };
+}
+
+/** 空席表示の履歴からの見積もり。取消や追加の席で変わり、残席数ではない。予約は実行しない */
+export async function seatForecastTool(eventId?: string, horizonDays?: number, limit?: number) {
+  const result = await runSeatForecast(await createClient(), resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH), { horizonDays, limit });
+  return { ...result, lines: formatForecast(result) };
+}
+
+/** 予約の合間に収まる、関心の外のセッションの提案。dates は会場の日付。予約は実行しない */
+export async function detourSuggestTool(eventId?: string, dates?: string[], perDay?: number) {
+  const result = await runDetour(await createClient(), resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH), { dates, perDay });
+  return { ...result, lines: formatDetours(result) };
 }
 
 export async function scheduleGetTool(eventId?: string) {

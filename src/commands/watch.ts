@@ -1,6 +1,7 @@
 import type { ApiClient } from '../api/client.js';
 import type { Session } from '../api/types.js';
 import { fetchAllSessions } from '../catalog/fetchAll.js';
+import { recordSeatHistory } from '../catalog/seatHistory.js';
 import { searchCatalog } from '../catalog/search.js';
 import { buildWatchState, detectWatchEvents, type WatchContext, type WatchEvent } from '../catalog/watch.js';
 import { loadWatchState, saveWatchState } from '../catalog/watchState.js';
@@ -56,6 +57,7 @@ export async function runWatchOnce(
     return { status: 'shrunk', sessionCount: current.length, events: [] };
   }
 
+  recordSeatHistory(eventId, current, dataDir, now.toISOString().slice(0, 10)); // 満席予報に使う空席表示の履歴
   const schedule = await runScheduleStatus(client, eventId);
   const events = previous
     ? detectWatchEvents(previous, current, {

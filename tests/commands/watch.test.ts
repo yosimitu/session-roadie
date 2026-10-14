@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runWatchOnce } from '../../src/commands/watch.js';
 import { loadWatchState } from '../../src/catalog/watchState.js';
+import { loadSeatHistory } from '../../src/catalog/seatHistory.js';
 import type { ApiClient } from '../../src/api/client.js';
 import type { Profile } from '../../src/profile/profileStore.js';
 import type { Session } from '../../src/api/types.js';
@@ -38,6 +39,17 @@ describe('runWatchOnce', () => {
     const result = await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
     expect(result).toMatchObject({ status: 'baseline', sessionCount: 1, events: [] });
     expect(loadWatchState('reinvent2026', dir)?.sessions['1']?.seat).toBe('unavailable');
+  });
+
+  it('観測した日の空席表示を、満席予報用の履歴に記録する（カタログが空のときは記録しない）', async () => {
+    let list: Session[] = [];
+    const client = fakeClient(() => list, { reserved: [], favorites: [] });
+    await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect(loadSeatHistory('reinvent2026', dir)).toEqual([]);
+
+    list = [s('1', { seatAvailability: 'limited' }), s('2')];
+    await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect(loadSeatHistory('reinvent2026', dir)).toEqual([{ date: '2026-10-11', seats: { '1': 'limited' } }]);
   });
 
   it('2回目は前回との差でイベントを返し、状態を更新する', async () => {

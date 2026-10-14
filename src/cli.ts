@@ -26,6 +26,7 @@ import type { FixedEvent } from './profile/profileStore.js';
 import { findConflicts, findPersonalTimeConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
 import { hasPlanChanges, saveScheduleBackup } from './schedule/backup.js';
+import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
 import { loadProfile } from './profile/profileStore.js';
@@ -538,6 +539,52 @@ program
       isFatal: (err) => toRoadieError(err).kind === 'authExpired',
       onError: (err) => { for (const line of formatRoadieErrorForCli(toRoadieError(err))) console.error(line); },
     });
+  });
+
+program
+  .command('now')
+  .description('いまから間に合うセッションを出す（開始が移動時間のあとで、予約・個人予定と重ならず、満席表示でないもの）。予約はしない')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('--at <time>', '現地時刻を指定する（"YYYY-MM-DD HH:MM"、会場の時刻）。省略時は現在時刻')
+  .option('--venue <venue>', '現在いる会場。省略時は、開催中または直近に終わった予約の会場')
+  .option('--within <minutes>', 'この分数以内に始まるものに絞る', '90')
+  .option('--limit <n>', '表示する件数', '10')
+  .action(async (options: { eventId: string; at?: string; venue?: string; within: string; limit: string }) => {
+    const now = options.at === undefined ? undefined : parseVenueLocalTime(options.at);
+    if (options.at !== undefined && !now) throw new Error(`--at は "YYYY-MM-DD HH:MM" の形で指定してください: "${options.at}"`);
+    const client = await createClient();
+    const result = await runNowGo(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH), {
+      now, venue: options.venue, withinMinutes: Number(options.within), limit: Number(options.limit),
+    });
+    for (const line of formatNowGo(result)) console.log(line);
+  });
+
+program
+  .command('forecast')
+  .description('空席表示の履歴から、近いうちに埋まりそうなセッションと穴場を出す（見積もり。予約はしない）')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('--horizon <days>', 'この日数以内に満席になる見込みのものを出す', '14')
+  .option('--limit <n>', '区分ごとの表示件数', '10')
+  .action(async (options: { eventId: string; horizon: string; limit: string }) => {
+    const client = await createClient();
+    const result = await runSeatForecast(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH), {
+      horizonDays: Number(options.horizon), limit: Number(options.limit),
+    });
+    for (const line of formatForecast(result)) console.log(line);
+  });
+
+program
+  .command('detour')
+  .description('予約の合間に収まる、関心の外のセッション（寄り道）を日ごとに提案する。予約はしない')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-d, --date <dates...>', '会場の日付 YYYY-MM-DD（複数可）。省略時は予約のある日')
+  .option('--per-day <n>', '1日あたりの候補数', '3')
+  .action(async (options: { eventId: string; date?: string[]; perDay: string }) => {
+    const client = await createClient();
+    const result = await runDetour(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH), {
+      dates: options.date, perDay: Number(options.perDay),
+    });
+    for (const line of formatDetours(result)) console.log(line);
   });
 
 program

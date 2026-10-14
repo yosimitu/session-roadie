@@ -7,6 +7,9 @@ import {
   authLogoutTool,
   catalogSyncTool,
   catalogWatchTool,
+  sessionsNowTool,
+  seatForecastTool,
+  detourSuggestTool,
   catalogSearchTool,
   scheduleOptimizeTool,
   scheduleGetTool,
@@ -82,6 +85,35 @@ export function createServer(): McpServer {
     description: 'カタログを取得し、前回の確認からの変化を返す: 満席だったお気に入りの空席表示（seatOpened）、満席のお気に入りの再演の空席表示（altSeatOpened）、プロフィールに合う新着（newMatching）、予約・お気に入りの変更（changedMine）と取消（removedMine）。初回は基準を保存するだけで、変化は返さない（status: baseline）。カタログが0件のときは状態を更新しない（status: empty）。予約は実行しない。空席表示は予約できることを保証しない（limited でも満席のことがある）',
     inputSchema: { ...eventIdParam },
   }, async ({ eventId }) => safely(() => catalogWatchTool(eventId)));
+
+  server.registerTool('sessions_now', {
+    description: 'いまから間に合うセッションを返す。開始が「いま＋現在地からの移動時間」以降で、withinMinutes（既定90）以内に始まり、予約・個人予定と重ならず、満席表示でないもの。お気に入り・関心トピック・空席の多い順。現在地は venue か、開催中・直近に終わった予約の会場から決める。walkUp は当日会場で並ぶ形式と思われるが未確認。予約は実行しない。空席表示は予約できることを保証しない',
+    inputSchema: {
+      ...eventIdParam,
+      at: z.string().optional().describe('会場の現地時刻 "YYYY-MM-DD HH:MM"。省略時は現在時刻（会期外の確認や試しに使う）'),
+      venue: z.string().optional().describe('現在いる会場（例 "Venetian"）。省略時は予約から推定'),
+      withinMinutes: z.number().int().min(1).max(480).optional().describe('この分数以内に始まるものに絞る（既定90）'),
+      limit: z.number().int().min(1).max(50).optional().describe('件数（既定10）'),
+    },
+  }, async ({ eventId, at, venue, withinMinutes, limit }) => safely(() => sessionsNowTool(eventId, at, venue, withinMinutes, limit)));
+
+  server.registerTool('seat_forecast', {
+    description: '空席表示の履歴（sync・watch がためる）から、近いうちに埋まりそうなセッション（urgent）、動いていない関心トピックの穴場（hidden）、空きが増えているもの（freeing）を返す。段階が進む速さが続くと仮定した見積もりで、残席数ではない。履歴が2日分に満たないと予報は出ない。confidence が low のうちは参考程度。予約は実行しない',
+    inputSchema: {
+      ...eventIdParam,
+      horizonDays: z.number().int().min(1).max(60).optional().describe('この日数以内に満席の見込みのものを urgent に入れる（既定14）'),
+      limit: z.number().int().min(1).max(50).optional().describe('区分ごとの件数（既定10）'),
+    },
+  }, async ({ eventId, horizonDays, limit }) => safely(() => seatForecastTool(eventId, horizonDays, limit)));
+
+  server.registerTool('detour_suggest', {
+    description: '予約の合間に収まる「寄り道」のセッションを日ごとに提案する。関心の外（プロフィールの関心トピック・お気に入り・予約のどれとも重ならないトピック）で、予約・個人予定と重ならず移動時間も取れ、満席でなく、プロフィールのレベル・スポンサー・開始時刻の条件に合うもの。ランダムではなく、空席の多い順・予約と形式が違う順・移動が短い順。予約は実行しない',
+    inputSchema: {
+      ...eventIdParam,
+      dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional().describe('会場の日付 YYYY-MM-DD。省略時は予約のある日'),
+      perDay: z.number().int().min(1).max(10).optional().describe('1日の候補数（既定3）'),
+    },
+  }, async ({ eventId, dates, perDay }) => safely(() => detourSuggestTool(eventId, dates, perDay)));
 
   server.registerTool('catalog_search', {
     description: 'ローカルスナップショット（catalog_syncで保存）からセッションを絞り込む。キーワード（AND）・トピック・形式・レベル・日付・会場・サービスで絞れる。結果は日時順で、他の回（再演）のIDも返す。英語のタイトル・abstractをそのまま返す',
