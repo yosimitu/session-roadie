@@ -26,6 +26,7 @@ import { runScheduleView } from '../commands/scheduleView.js';
 import type { Session } from '../api/types.js';
 import { runWatchOnce } from '../commands/watch.js';
 import { formatWatchEvents } from '../commands/watchReport.js';
+import { runTrends, formatTrends } from '../commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from '../commands/insights.js';
 
 // MCPツールのハンドラ本体。「ロジックは全部ここ」という方針（Claude Code → スキル/コマンド →
@@ -101,6 +102,15 @@ export async function seatForecastTool(eventId?: string, horizonDays?: number, l
 export async function detourSuggestTool(eventId?: string, dates?: string[], perDay?: number) {
   const result = await runDetour(await createClient(), resolveEventId(eventId), DATA_DIR, loadProfile(PROFILE_PATH), { dates, perDay });
   return { ...result, lines: formatDetours(result) };
+}
+
+/**
+ * カタログの傾向。since は比べる基準日（保存済みの日付別スナップショット。省略時は最も古い日）。
+ * 件数は掲載数で、AWS の注力や参加者数を表すとは限らない。サインインできなくても傾向は返す（個人との比較だけ省く）。
+ */
+export async function catalogTrendsTool(eventId?: string, since?: string, keywords?: string[], limit?: number) {
+  const result = await runTrends(createClient, resolveEventId(eventId), DATA_DIR, { since, keywords, limit });
+  return { ...result, lines: formatTrends(result) };
 }
 
 export async function scheduleGetTool(eventId?: string) {

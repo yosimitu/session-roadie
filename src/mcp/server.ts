@@ -7,6 +7,7 @@ import {
   authLogoutTool,
   catalogSyncTool,
   catalogWatchTool,
+  catalogTrendsTool,
   sessionsNowTool,
   seatForecastTool,
   detourSuggestTool,
@@ -85,6 +86,16 @@ export function createServer(): McpServer {
     description: 'カタログを取得し、前回の確認からの変化を返す: 満席だったお気に入りの空席表示（seatOpened）、満席のお気に入りの再演の空席表示（altSeatOpened）、プロフィールに合う新着（newMatching）、予約・お気に入りの変更（changedMine）と取消（removedMine）。初回は基準を保存するだけで、変化は返さない（status: baseline）。カタログが0件のときは状態を更新しない（status: empty）。予約は実行しない。空席表示は予約できることを保証しない（limited でも満席のことがある）',
     inputSchema: { ...eventIdParam },
   }, async ({ eventId }) => safely(() => catalogWatchTool(eventId)));
+
+  server.registerTool('catalog_trends', {
+    description: 'ローカルスナップショットから、カタログの傾向を返す: 話題・サービス・形式・レベル・日別の件数と割合、基準日（since。既定は保存済みで最も古い日）からの増減、増えたサービス（risingServices）、タイトルに増えた語（risingTerms）、指定した語の件数（keywords）、予約・お気に入りが全体より多い／少ない話題（personal）。件数はカタログの掲載数で、AWSの注力や参加者数を表すとは限らない（非公開から公開になっただけで増えることもある）。語の数はタイトルに含まれるかだけ。履歴が1日分しかないと増減は出ない',
+    inputSchema: {
+      ...eventIdParam,
+      since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('比べる基準日 YYYY-MM-DD（保存済みの日付別スナップショット）。省略時は最も古い日'),
+      keywords: z.array(z.string()).optional().describe('タイトルに含まれる件数を数えたい語（大文字小文字無視）。例 ["AgentCore","Kiro"]'),
+      limit: z.number().int().min(1).max(50).optional().describe('区分ごとの件数（既定10）'),
+    },
+  }, async ({ eventId, since, keywords, limit }) => safely(() => catalogTrendsTool(eventId, since, keywords, limit)));
 
   server.registerTool('sessions_now', {
     description: 'いまから間に合うセッションを返す。開始が「いま＋現在地からの移動時間」以降で、withinMinutes（既定90）以内に始まり、予約・個人予定と重ならず、満席表示でないもの。お気に入り・関心トピック・空席の多い順。現在地は venue か、開催中・直近に終わった予約の会場から決める。walkUp は当日会場で並ぶ形式と思われるが未確認。予約は実行しない。空席表示は予約できることを保証しない',

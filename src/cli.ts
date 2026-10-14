@@ -26,6 +26,7 @@ import type { FixedEvent } from './profile/profileStore.js';
 import { findConflicts, findPersonalTimeConflicts } from './commands/conflicts.js';
 import { recommendForConflict } from './planning/alternatives.js';
 import { hasPlanChanges, saveScheduleBackup } from './schedule/backup.js';
+import { runTrends, formatTrends } from './commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
@@ -585,6 +586,20 @@ program
       dates: options.date, perDay: Number(options.perDay),
     });
     for (const line of formatDetours(result)) console.log(line);
+  });
+
+program
+  .command('trends')
+  .description('カタログの傾向（話題・サービス・形式・日別の件数と、基準日からの増減、増えた語、予約・お気に入りとの違い）を出す。件数は掲載数で、AWSの注力を表すとは限らない')
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('--since <date>', '比べる基準日 YYYY-MM-DD（保存済みの日付別スナップショット）。省略時は最も古い日')
+  .option('--keyword <words...>', 'タイトルに含まれる件数を数えたい語（複数可）')
+  .option('--limit <n>', '区分ごとの表示件数', '10')
+  .action(async (options: { eventId: string; since?: string; keyword?: string[]; limit: string }) => {
+    const result = await runTrends(createClient, options.eventId, DATA_DIR, {
+      since: options.since, keywords: options.keyword, limit: Number(options.limit),
+    });
+    for (const line of formatTrends(result)) console.log(line);
   });
 
 program
