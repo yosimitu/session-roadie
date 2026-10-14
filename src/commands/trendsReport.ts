@@ -24,12 +24,19 @@ export async function runTrends(
   const current = loadSnapshot(eventId, dataDir);
   if (!current) throw new Error(`ローカルスナップショット（${eventId}）がありません。先に sync を実行してください`);
 
-  const dates = listSnapshotDates(eventId, dataDir); // 新しい順
-  const baselineDate = options.since ?? dates[dates.length - 1];
-  const baseline = baselineDate ? loadSnapshotByDate(eventId, dataDir, baselineDate) : undefined;
-  if (options.since !== undefined && !baseline) {
-    throw new Error(`${options.since} のスナップショットが見つかりません。${dates.length > 0 ? `利用可能な日付: ${dates.join(', ')}` : 'まだ記録がありません。'}`);
+  // 0件の日（API が空を返していた日）は、比べると「全部が新着」になるので基準にしない
+  const usable = listSnapshotDates(eventId, dataDir).filter((d) => (loadSnapshotByDate(eventId, dataDir, d)?.length ?? 0) > 0); // 新しい順
+  let baselineDate = usable[usable.length - 1];
+  if (options.since !== undefined) {
+    if (!usable.includes(options.since)) {
+      const empty = listSnapshotDates(eventId, dataDir).includes(options.since);
+      throw new Error(
+        `${options.since} のスナップショットを基準にできません（${empty ? '0件のため' : '見つかりません'}）。${usable.length > 0 ? `利用可能な日付: ${usable.join(', ')}` : 'まだ記録がありません。'}`,
+      );
+    }
+    baselineDate = options.since;
   }
+  const baseline = baselineDate ? loadSnapshotByDate(eventId, dataDir, baselineDate) : undefined;
 
   let mine: Session[] | undefined;
   let personalNote: string | undefined;
