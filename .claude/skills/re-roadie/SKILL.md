@@ -1,6 +1,6 @@
 ---
 name: re-roadie
-description: re:Invent の参加者の意図をもとに、session-roadie MCPサーバー（auth_status/catalog_sync/catalog_search/profile_get/schedule_optimize/schedule_get/schedule_plan/schedule_apply/conflicts_get/travel_blocks_plan/travel_blocks_apply/notes_*/onboarding_save/catalog_watch/sessions_now/seat_forecast/detour_suggest）を使ってセッション計画・予約・移動時間確保・メモ反映・空席の見張り・いまから行けるセッションの提示・満席予報・寄り道の提案を行う手順。「re:Invent の予定を整えて」「今日の予定を組んで」「移動時間を確保して」「メモをリマインダーにして」「いまから行けるセッションは？」「満席になりそうなものは？」「寄り道できるセッションを探して」のような依頼があったときに使う。
+description: re:Invent の参加者の意図をもとに、session-roadie MCPサーバー（auth_status/catalog_sync/catalog_search/profile_get/schedule_optimize/schedule_get/schedule_plan/schedule_apply/conflicts_get/travel_blocks_plan/travel_blocks_apply/notes_*/onboarding_save/catalog_watch/sessions_now/seat_forecast/detour_suggest/catalog_trends）を使ってセッション計画・予約・移動時間確保・メモ反映・空席の見張り・いまから行けるセッションの提示・満席予報・寄り道の提案・カタログの傾向の説明を行う手順。「re:Invent の予定を整えて」「今日の予定を組んで」「移動時間を確保して」「メモをリマインダーにして」「いまから行けるセッションは？」「満席になりそうなものは？」「寄り道できるセッションを探して」「今年は何が多い？」のような依頼があったときに使う。
 ---
 
 # re:Roadie の使い方
@@ -120,6 +120,16 @@ description: re:Invent の参加者の意図をもとに、session-roadie MCPサ
 - ランダムではない。同じ状態なら同じ結果になる。別の候補を見たいときは `perDay` を増やす。
 - 候補が出ないのは、空き時間が短いか、収まるセッションが残っていないとき。その旨を伝える。
 - 予約は、ユーザーが選んだら `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
+
+## 「今年は何が多い？」「増えた話題は？」「自分の関心は全体と比べてどう？」
+
+`catalog_trends` を呼ぶ。`since`（比べる基準日。省略時は保存済みで最も古い日）と、数えたい語の `keywords`（例 `["AgentCore","Kiro"]`）を渡せる。
+
+- 返る `lines` をそのまま見せる。話題・サービス・形式・レベル・日別、増えたサービス（`risingServices`）、タイトルに増えた語（`risingTerms`）、`personal`（予約・お気に入りが全体より多い／少ない話題）が入る。
+- **数字の読み方を必ず添える。** 件数はカタログの掲載数で、AWS の注力や参加者数を表すとは限らない（非公開から公開になっただけで増えることもある）。語の数はタイトルに含まれるかだけで、別の言い方は拾えない。「注力している」「流行っている」と断定しない。
+- 比べる過去のスナップショットがない（`baselineDate` が無い）ときは増減が出ない。`catalog_sync` を毎日続けるほど、日ごとの変化が取れると案内する。
+- `personal` はサインインしているときだけ出る。出ていないときは `notes` の理由を伝える。
+- 気になる語が出たら、`catalog_search` でそのセッションを探すよう勧める。
 
 ## カタログが0件のとき（`catalog_sync` が「0件」で失敗する）
 

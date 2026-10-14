@@ -104,6 +104,7 @@ Besides your usual work, your goal for this trip, your stamina, your attendance 
 | `re-roadie now` | Lists sessions you can still make right now (it never reserves). A session qualifies when it starts after "now + travel time from where you are", within `--within` minutes (default 90), does not overlap your reservations or personal time, and is not shown as full. Ordered by favorites, topics of interest, then seat availability. Your location is `--venue`, or the venue of the reservation in progress or just ended. `--at "2026-12-02 10:30"` (venue local time) lets you try it outside the event. `walkUp` is presumably a queue-on-the-day format, which is unconfirmed |
 | `re-roadie forecast` | From the history of seat displays, shows sessions likely to fill soon, quiet hidden gems in your topics of interest, and sessions whose seats are increasing (it never reserves). `sync` and `watch` build the history daily (`data/seat-history-<eventId>.json` plus the dated snapshots). It is an estimate that assumes the recent pace of change continues, not a seat count. With less than two days of history no forecast is made, and confidence stays `low` while observations are few |
 | `re-roadie detour` | Suggests "detours" that fit between your reservations, per day (it never reserves). Sessions are ordered by a small interest strength (declared interest = 3, each reservation = 2, each favorite = 1, summed per topic), and only those at 3 or below are shown. They must not overlap your reservations or personal time, leave room for travel, not be full, and satisfy your profile's level, sponsored-session, and start-time settings. It is deterministic: the same input gives the same result |
+| `re-roadie trends` | Shows trends in the catalog: counts and shares by topic, service, type, level, and day; the change since a baseline date (`--since YYYY-MM-DD`, default: the oldest saved snapshot); services that grew; terms that grew in titles; counts for words you pass with `--keyword AgentCore Kiro`; and the topics where your reservations and favorites are over- or under-represented compared with the whole catalog. Counts are numbers of listed sessions, not a measure of AWS's focus or of attendance (a session can appear simply by going from private to public). Words are counted only when they appear in the title. It works without signing in, minus the personal comparison |
 | `re-roadie conflicts` | Detects time overlaps among reserved sessions and suggests which ones you can give up, with fact-based reasons (whether a repeat or a similar session exists). It also shows reservations that overlap personal time (keynotes etc.) |
 | `re-roadie travel-blocks` | Calculates travel time between reserved sessions. If you cannot make it in time it warns you; otherwise it writes the travel time to the official schedule (the block covers only the required travel time, rounded up to 5 minutes, starting right after the previous session ends, not the whole gap) with `CreatePersonalTime` |
 | `re-roadie notes add/list/report/apply` | Records and lists notes on sessions, produces a by-theme post-trip report, and writes day-of reminders |
@@ -149,7 +150,7 @@ If your network only reaches the internet through a proxy, the MCP server's requ
 - If the proxy inspects traffic with a corporate certificate and you get certificate errors, add `"NODE_EXTRA_CA_CERTS": "/path/to/company-ca.pem"` to `env`.
 - When you run the CLI directly (for example `re-roadie sync`), set the same variables in your shell (`export` on macOS, `$env:` in PowerShell).
 
-#### MCP tools ([src/mcp/server.ts](src/mcp/server.ts), 24 tools)
+#### MCP tools ([src/mcp/server.ts](src/mcp/server.ts), 25 tools)
 
 | Tool | Description |
 | --- | --- |
@@ -161,6 +162,7 @@ If your network only reaches the internet through a proxy, the MCP server's requ
 | `sessions_now` | Returns the sessions you can make right now (same as the CLI `now`; accepts `at`, `venue`, `withinMinutes`, `limit`). It never reserves |
 | `seat_forecast` | From the seat-display history, returns sessions likely to fill soon (`urgent`), hidden gems (`hidden`), and sessions with increasing seats (`freeing`). An estimate, not a seat count. It never reserves |
 | `detour_suggest` | Returns detours that fit between your reservations, per day (accepts `dates`, `perDay`). It never reserves |
+| `catalog_trends` | Returns the catalog trends (same as the CLI `trends`; accepts `since`, `keywords`, `limit`). Counts are listed sessions, not a measure of focus |
 | `catalog_search` | Filters sessions from the local snapshot (keyword, topic, format, level, date, venue, service). Also returns the IDs of other occurrences (repeats). If you omit the date, `maxLevel`, or `excludeSponsored`, it filters by profile values (attendance days, preferred level, sponsored exclusion) and returns the applied values in `appliedProfileDefaults` |
 | `profile_get` | Returns the saved profile and intent, and the `schedule_optimize` defaults derived from them |
 | `schedule_optimize` | From candidate sessions, picks the largest non-overlapping combination, taking into account swapping to repeats, personal time, travel time between venues, and the profile (daily limit, minimum gap, preferred formats, attendance days, earliest start time, fixed appointments; lunch is a warning only). It does not execute anything. Candidates that did not fit are returned with the sessions they conflict with |
@@ -182,7 +184,7 @@ If your network only reaches the internet through a proxy, the MCP server's requ
 
 - **name**: `re-roadie`
 - **Example triggers** (the skill is written for Japanese prompts): "re:Invent の予定を整えて" (organize my re:Invent schedule), "今日の予定を組んで" (plan today), "移動時間を確保して" (block travel time), "メモをリマインダーにして" (turn my notes into reminders)
-- It defines only the order in which the 24 MCP tools are called and holds no logic. It states the basic rule that write operations always show the diff with `*_plan`, get the user's confirmation, and only then call `*_apply`.
+- It defines only the order in which the 25 MCP tools are called and holds no logic. It states the basic rule that write operations always show the diff with `*_plan`, get the user's confirmation, and only then call `*_apply`.
 - Catalog session information (title, abstract, etc.) is English only, so the skill also includes a rule to show a Japanese translation and a short description to the user.
 
 #### What to say (examples by goal)
@@ -201,6 +203,7 @@ The skill is written for Japanese, so the example prompts below are in Japanese,
 | Find what I can make right now | 「いまから行けるセッションは？」(what can I go to now?), 「次の予定まで1時間あるけど、何か聞ける？」(I have an hour before my next session; anything to attend?) |
 | Secure what is about to fill up | 「満席になりそうなセッションは？」(which sessions are about to fill?), 「穴場はある？」(any hidden gems?) |
 | Add something different between sessions | 「寄り道できるセッションを探して」(find me a detour session) |
+| Understand the overall picture | 「今年は何が多い？」(what is most common this year?), 「前より増えた話題は？」(which topics grew?), 「AgentCore と Kiro は何件ある？」(how many sessions mention AgentCore and Kiro?), 「自分の関心は全体と比べてどう？」(how do my interests compare with the whole?) |
 
 Free-form text is fine for all of these; you do not need to give session IDs or tool names (Claude interprets the intent and proceeds as `*_plan` diff, confirmation, `*_apply`). More examples are in the [Appendix: Useful phrases](#appendix-useful-phrases).
 
