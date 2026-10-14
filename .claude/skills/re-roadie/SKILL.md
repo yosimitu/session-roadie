@@ -1,6 +1,6 @@
 ---
 name: re-roadie
-description: re:Invent の参加者の意図をもとに、session-roadie MCPサーバー（auth_status/catalog_sync/catalog_search/profile_get/schedule_optimize/schedule_get/schedule_plan/schedule_apply/conflicts_get/travel_blocks_plan/travel_blocks_apply/notes_*/onboarding_save）を使ってセッション計画・予約・移動時間確保・メモ反映を行う手順。「re:Invent の予定を整えて」「今日の予定を組んで」「移動時間を確保して」「メモをリマインダーにして」のような依頼があったときに使う。
+description: re:Invent の参加者の意図をもとに、session-roadie MCPサーバー（auth_status/catalog_sync/catalog_search/profile_get/schedule_optimize/schedule_get/schedule_plan/schedule_apply/conflicts_get/travel_blocks_plan/travel_blocks_apply/notes_*/onboarding_save/catalog_watch/sessions_now/seat_forecast/detour_suggest）を使ってセッション計画・予約・移動時間確保・メモ反映・空席の見張り・いまから行けるセッションの提示・満席予報・寄り道の提案を行う手順。「re:Invent の予定を整えて」「今日の予定を組んで」「移動時間を確保して」「メモをリマインダーにして」「いまから行けるセッションは？」「満席になりそうなものは？」「寄り道できるセッションを探して」のような依頼があったときに使う。
 ---
 
 # re:Roadie の使い方
@@ -94,6 +94,32 @@ description: re:Invent の参加者の意図をもとに、session-roadie MCPサ
 - 空席表示は**予約できることを保証しない**（`limited` でも満席のことがある）。「予約を試しますか」と聞き、希望があれば `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
 - `changedMine` / `removedMine` は、予約の時間が他の予約と重なっていないか `conflicts_get` で確認するよう添える。
 - `catalog_watch` と `re-roadie watch` は同じ状態ファイルを共有する。片方が確認すると、もう片方からは同じ変化が見えなくなるので、どちらか一方で使うよう案内する。
+
+## 「いまから行けるセッションは？」「次の予定まで時間がある」
+
+`sessions_now` を呼ぶ。現在地は、開催中または直近3時間以内に終わった予約の会場から決まる。分からないときは `venue` を聞く。会期の外で試すときは `at`（会場の現地時刻 "YYYY-MM-DD HH:MM"）を渡す。
+
+- 返る `lines` をそのまま見せる。順序は、お気に入り、関心トピック、空席の多い順、開始の近い順。
+- 前提として `catalog_sync` が新しいこと。古いと、満席になったものや新しいものが反映されていない。必要なら先に `catalog_sync` を勧める。
+- 空席表示は**予約できることを保証しない**。`walkUp` は当日会場で並ぶ形式と思われるが、未確認なので断定しない。
+- 予約は、ユーザーが選んだら `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
+
+## 「満席になりそうなセッションは？」「穴場はある？」
+
+`seat_forecast` を呼ぶ。返りは `urgent`（近いうちに埋まりそう）、`hidden`（動いていない関心トピックの穴場）、`freeing`（空きが増えている）。
+
+- **見積もりであることを必ず添える。** 空席表示の段階が進む速さが続くと仮定した値で、残席数ではない。`confidence` が `low` のうちは参考程度と伝える。
+- 履歴が2日分に満たないときは予報が出ない。`catalog_sync` か `catalog_watch` を続けると履歴がたまる、と案内する（毎日の `re-roadie watch` もためる）。
+- `urgent` のお気に入り（`isFavorite`）は、先に押さえるよう勧める。予約は `schedule_plan` → 確認 → `schedule_apply`。
+
+## 「寄り道できるセッションを探して」「いつもと違うものを入れたい」
+
+`detour_suggest` を呼ぶ。予約のある日ごとに、予約の合間に収まる候補が返る。`dates` で日を絞れる。
+
+- 候補は、関心の強さ（`affinity`）が小さい順で、3以下だけ。0 は関心の外。大きいほど、似たトピックの予約・お気に入りが多い。
+- ランダムではない。同じ状態なら同じ結果になる。別の候補を見たいときは `perDay` を増やす。
+- 候補が出ないのは、空き時間が短いか、収まるセッションが残っていないとき。その旨を伝える。
+- 予約は、ユーザーが選んだら `schedule_plan` → 確認 → `schedule_apply` の順に進む。このツール自体は予約しない。
 
 ## カタログが0件のとき（`catalog_sync` が「0件」で失敗する）
 
