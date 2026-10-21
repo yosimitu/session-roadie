@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>re:Roadie Schedule</title><style>
+:root{--tx:#2C2C2B;--tx2:#7D7A75;--bg:#fff;--sf:#F9F8F7;--sf2:#F0EFED;--bd:#E6E5E3;--ac:#2783DE;--acs:#E5F2FC;--gr:#46A171;--grs:#E8F1EC;--or:#D5803B;--ors:#FBEBDE;--rd:#E56458;--rds:#FCE9E7;
+--memo:#FFF4D6;--v-mgm:#e8f0ff;--v-wynn:#fff1e0;--v-venetian:#e8f7ec;--v-palace:#f6e9ff;--v-forum:#e6f6f8;--v-other:#f1f3f6}
+@media (prefers-color-scheme:dark){:root{--tx:#fff;--tx2:rgba(255,255,255,.65);--bg:#191919;--sf:#202020;--sf2:#383836;--bd:rgba(255,255,255,.2);--ac:#5E9FE8;--acs:rgba(94,159,232,.12);--gr:#72BC8F;--grs:rgba(114,188,143,.12);--or:#DE9255;--ors:rgba(222,146,85,.12);--rd:#E97366;--rds:rgba(233,115,102,.12);
+--memo:rgba(232,169,59,.18);--v-mgm:#1b2b4a;--v-wynn:#4a3318;--v-venetian:#173a24;--v-palace:#3b2552;--v-forum:#14383d;--v-other:#222a36}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;color:var(--tx);background:var(--bg)}
+button,input,select{font:inherit;color:inherit}
+header{padding:24px 32px 16px;border-bottom:1px solid var(--bd)}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--tx2);font-size:14px;margin:0}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+.stat{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;min-width:110px}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:12px;color:var(--tx2)}
+.tabs{display:flex;gap:4px;padding:0 32px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--bg);z-index:5}
+.tab{border:0;background:none;padding:12px 14px;cursor:pointer;color:var(--tx2);border-bottom:2px solid transparent;min-height:44px}
+.tab.on{color:var(--tx);border-bottom-color:var(--ac);font-weight:600}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:0;min-height:80vh}
+aside{border-right:1px solid var(--bd);padding:16px;overflow:auto;max-height:calc(100vh - 46px);position:sticky;top:46px}
+main{padding:16px 32px 64px;min-width:0}
+.view{padding:16px 32px 48px}
+.search{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+.search:focus,.mini:focus{outline:2px solid var(--ac);outline-offset:1px}
+details.f{border-bottom:1px solid var(--bd);padding:8px 0}
+details.f summary{cursor:pointer;font-weight:600;font-size:14px;padding:6px 0;list-style:none;display:flex;justify-content:space-between}
+details.f summary::after{content:"＋";color:var(--tx2)}
+details.f[open] summary::after{content:"－"}
+.badge{background:var(--ac);color:#fff;border-radius:10px;font-size:11px;padding:0 7px;margin-left:6px}
+.opts{max-height:260px;overflow:auto;padding:2px 0}
+.opt{display:flex;align-items:flex-start;gap:8px;font-size:13px;padding:3px 2px;cursor:pointer;border-radius:4px}
+.opt:hover{background:var(--sf)}
+.opt input{margin-top:3px}
+.opt .en{color:var(--tx2);font-size:11px;display:block}
+.opt .n{margin-left:auto;color:var(--tx2);font-size:12px;font-variant-numeric:tabular-nums}
+.opt.zero{opacity:.4}
+.mini{width:100%;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;margin:4px 0;background:var(--bg);font-size:13px}
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.toolbar .count{font-weight:600}
+.btn{border:1px solid var(--bd);background:var(--bg);border-radius:8px;padding:6px 12px;cursor:pointer;min-height:36px;font-size:13px}
+.btn:hover{background:var(--sf)}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn:focus-visible,.tab:focus-visible,.star:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{background:var(--acs);color:var(--ac);border:0;border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer}
+.card{border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--bg)}
+.card:hover{border-color:var(--tx2)}
+.card.is-reserved{border-left:4px solid var(--gr)}
+.row1{display:flex;gap:10px;align-items:flex-start}
+.code{font-family:Menlo,Consolas,monospace;font-size:12px;background:var(--sf2);border-radius:4px;padding:2px 6px;white-space:nowrap}
+.title{font-weight:600;font-size:15.5px;margin:0;flex:1}
+.title .ja{display:block;font-weight:600}
+.title .ja + .orig{display:block;font-weight:400;font-size:13px;color:var(--tx2)}
+.star{border:0;background:none;font-size:20px;cursor:pointer;color:var(--tx2);min-width:36px;min-height:36px;border-radius:6px}
+.star.on{color:#E8A93B}
+.meta{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;color:var(--tx2);margin:6px 0}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11.5px;border-radius:4px;padding:1px 7px;background:var(--sf2)}
+.tag.ty{background:var(--acs);color:var(--ac)}
+.tag.rl{background:var(--grs);color:var(--gr)}
+.tag.lv{background:var(--ors);color:var(--or)}
+.tag.st-rs{background:var(--gr);color:#fff;font-weight:600}
+.tag.st-fv{background:var(--acs);color:var(--ac);font-weight:600}
+.tag.st-nw{background:var(--or);color:#fff;font-weight:600}
+.tag.st-op{background:var(--grs);color:var(--gr)}
+.tag.st-fl{background:var(--rds);color:var(--rd);font-weight:600}
+.tag.st-wu{background:var(--sf2);color:var(--tx2)}
+.tag.st-rc{background:#7C5CFC;color:#fff;font-weight:600}
+.rec{margin-top:8px;font-size:12px;color:var(--tx2)}
+.rec b{color:#7C5CFC}
+.recipe{margin:0 0 12px;font-size:13px;border:1px solid var(--bd);border-radius:8px;padding:8px 12px}
+.recipe summary{cursor:pointer;font-weight:600}
+.recipe ul{margin:8px 0 0;padding-left:18px}
+.recipe .src{color:var(--tx2);font-size:12px}
+.abs{font-size:14px;margin-top:10px;display:none}
+.card.open .abs{display:block}
+.abs p{margin:6px 0}
+.abs .jaabs{background:var(--sf);border-left:3px solid var(--ac);padding:8px 12px;border-radius:4px}
+.abs .lbl{font-size:12px;color:var(--tx2);font-weight:600}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.more{display:flex;justify-content:center;margin:16px}
+.note{font-size:12px;color:var(--tx2);margin:2px 0}
+.empty{padding:48px;text-align:center;color:var(--tx2)}
+.ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.panel{border:1px solid var(--bd);border-radius:10px;padding:16px}
+.panel h3{margin:0 0 12px;font-size:16px}
+.bar{display:grid;grid-template-columns:170px 1fr 46px;gap:8px;align-items:center;font-size:13px;margin:4px 0;cursor:pointer}
+.bar:hover .lab{color:var(--ac)}
+.bar .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .tr{background:var(--sf2);border-radius:4px;height:12px;overflow:hidden}
+.bar .fl{background:var(--ac);height:100%;border-radius:4px}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--tx2)}
+.mday{margin-bottom:24px}
+.mday h3{font-size:16px;margin:0 0 8px}
+.slot{display:grid;grid-template-columns:110px 1fr;gap:12px;border-top:1px solid var(--bd);padding:8px 0;font-size:14px}
+.slot.cf{background:var(--rds)}
+.warn{color:var(--rd);font-size:12px;font-weight:600}
+.warn-text{color:var(--rd);font-weight:600}
+.hidden{display:none!important}
+.dnav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 16px}
+.dnav a{padding:4px 12px;border:1px solid var(--bd);border-radius:6px;color:var(--tx);text-decoration:none;font-size:13px}
+.dnav a.is-today{border-color:var(--ac);color:var(--ac);font-weight:600}
+.t-day{max-width:1100px;margin:0 0 28px}
+.t-day h3{font-size:16px;margin:0 0 8px}
+.t-day h3 small{margin-left:12px;color:var(--tx2);font-weight:400;font-size:12px}
+.today{background:var(--ac);color:var(--bg);border-radius:4px;padding:1px 6px;font-size:11px;margin-left:6px}
+.t-grid{position:relative;border-top:1px solid var(--bd)}
+.t-hour{position:absolute;left:0;right:0;border-top:1px solid var(--bd)}
+.t-hour span{position:absolute;left:0;top:-9px;background:var(--bg);color:var(--tx2);font-size:11px;padding-right:4px}
+.t-lane{position:absolute;left:52px;right:0;top:0;bottom:0}
+.t-card{position:absolute;overflow:hidden;border:1px solid var(--bd);border-left:4px solid var(--ac);border-radius:6px;padding:2px 6px;background:var(--bg);font-size:12px;line-height:1.35}
+.t-card .t-time{color:var(--tx2);font-size:11px}
+.t-card .t-ttl{font-weight:600}
+.t-card .t-abbr{color:var(--tx2);font-weight:400}
+.t-card .t-meta{color:var(--tx2);font-size:11px}
+.t-tags{margin-top:2px}
+.t-tag{display:inline-block;margin:0 4px 2px 0;padding:0 5px;border-radius:4px;border:1px solid currentColor;font-size:11px}
+.t-tag.warn{color:var(--rd)}.t-tag.info{color:var(--ac)}.t-tag.seat{color:var(--or)}
+.t-card.reserved.venue-mgm{background:var(--v-mgm)}.t-card.reserved.venue-wynn{background:var(--v-wynn)}.t-card.reserved.venue-venetian{background:var(--v-venetian)}
+.t-card.reserved.venue-palace{background:var(--v-palace)}.t-card.reserved.venue-forum{background:var(--v-forum)}.t-card.reserved.venue-other{background:var(--v-other)}
+.t-card.favorite{border-style:dashed;border-left-style:dashed;opacity:.9}
+.t-card.personal{background:var(--sf2);border-left-color:var(--tx2);font-style:italic}
+.t-card.derived{background:transparent;border-style:dotted;border-left-color:var(--tx2);color:var(--tx2)}
+.missing{max-width:1100px;margin:0 0 16px;padding:8px 12px;border:1px solid var(--bd);border-radius:6px}
+.seg{display:inline-flex;gap:0}
+.seg .btn{border-radius:0}
+.seg .btn:first-child{border-radius:8px 0 0 8px}
+.seg .btn:last-child{border-radius:0 8px 8px 0;border-left:0}
+.seg .btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.sched-bar{margin-bottom:8px}
+.t-band{position:absolute;left:52px;right:0;pointer-events:none}
+.w-col .t-band{left:0}
+.t-band span{position:absolute;right:6px;top:2px;font-size:11px;color:var(--tx2)}
+.band-breakfast{background:rgba(232,169,59,.13)}
+.band-lunch{background:rgba(70,161,113,.13)}
+.band-night{background:rgba(99,102,241,.14)}
+.t-card[data-session],.t-card.memo{cursor:pointer}
+.t-card[data-session]:hover,.t-card.memo:hover{border-color:var(--ac)}
+.card.flash{outline:3px solid var(--ac);outline-offset:2px}
+.slot .mstar{border:0;background:none;color:#E8A93B;cursor:pointer;font-size:18px;padding:0 4px 0 0;vertical-align:middle}
+.linkbtn{border:0;background:none;color:var(--ac);cursor:pointer;font-size:12px;padding:0 0 0 6px}
+.linkbtn:hover{text-decoration:underline}
+.hide-fav .t-card.favorite{display:none}
+.hide-fav .t-card[style*="--l2"]{left:var(--l2)!important;width:var(--w2)!important}
+.t-memo{display:none}
+.show-memo .t-grid.has-memo .t-lane{right:calc(var(--memo-w,33%) + 1%)}
+.show-memo .t-grid.has-memo .t-memo{display:block;position:absolute;top:0;bottom:0;right:0;width:var(--memo-w,33%)}
+.t-card.memo{background:var(--memo);border-left-color:#E8A93B;border-style:solid}
+.t-card.memo .mstar{position:absolute;top:0;right:2px;border:0;background:none;color:#E8A93B;cursor:pointer;font-size:15px;padding:0 2px}
+.t-tag.memo-tag{color:#B7791F}
+.t-card.compact .t-meta{display:none}
+.t-card.compact{padding:1px 2px;font-size:10px}
+.t-card.compact .t-tag{padding:0 2px;margin:0 2px 1px 0}
+.w-wrap{display:grid;gap:12px;overflow-x:auto;padding-bottom:8px}
+.w-axis{position:sticky;left:0;z-index:3;background:var(--bg)}
+.w-axis h4,.w-col h4{height:22px;margin:0 0 6px;overflow:hidden;white-space:nowrap}
+.t-axis{position:relative;border-top:1px solid var(--bd)}
+.t-axis .t-hour{border-top:0}
+.t-axis .t-hour span{font-size:10px}
+.w-col h4{font-size:14px;position:sticky;left:0}
+.w-col h4 small{margin-left:8px;color:var(--tx2);font-weight:400;font-size:11px}
+.w-col .t-lane{left:0}
+.w-col .t-card{font-size:11px;padding:1px 4px}
+.w-col .t-hour span{font-size:10px}
+@media (max-width:820px){.layout{grid-template-columns:1fr}aside{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--bd)}main,header,.view{padding-left:16px;padding-right:16px}.tabs{padding:0 8px;overflow-x:auto}.bar{grid-template-columns:120px 1fr 40px}.t-lane{left:44px}}
+</style></head><body>
+<header><h1>re:Roadie Schedule and Session Catalog</h1>
+<p class="sub">Read-only. You cannot change your official schedule from this page. Note candidates (☆) are saved in this browser only.</p>
+<div class="stats" id="stats"></div>
+<p class="note" id="newNote"></p>
+<p class="note">All times are venue local time (PST). Japan time is +17 hours (e.g. 08:30 local is 01:30 the next day in Japan).</p>
+<p class="note">Generated: 2026-11-20T00:00:00.000Z (UTC).</p></header>
+<nav class="tabs" role="tablist">
+<button class="tab on" data-v="sched" role="tab">Schedule</button>
+<button class="tab" data-v="list" role="tab">Session list</button>
+<button class="tab" data-v="ov" role="tab">Overview</button>
+<button class="tab" data-v="memo" role="tab">Note candidates <span id="memon"></span></button>
+</nav>
+<div id="vsched" class="view">
+<div class="note">Reserved 8 / Favorites 7 (not reserved) / <span class="warn-text">Warnings 1</span></div>
+<div class="toolbar sched-bar">
+<span class="seg"><button class="btn on" data-sv="day">By day</button><button class="btn" data-sv="week">All 3 days</button></span>
+<label class="opt"><input type="checkbox" id="showFav" checked>Show unreserved favorites</label>
+<label class="opt"><input type="checkbox" id="showMemo" checked>Show ★ notes</label>
+<span class="note">Click a card to jump to its details in the session list. ★ notes added in the list (saved in this browser only) appear in the right column. Your official reservations and favorites do not change.</span>
+</div>
+
+<div id="vday"><div class="dnav"><a href="#day-2026-12-01">12-01</a><a href="#day-2026-12-02">12-02</a><a href="#day-2026-12-03">12-03</a></div><section class="t-day" id="day-2026-12-01"><h3>2026-12-01 <small>Reserved 3</small></h3><div class="t-grid" data-date="2026-12-01" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"><span>07:00</span></div><div class="t-hour" style="top:72.0px"><span>08:00</span></div><div class="t-hour" style="top:144.0px"><span>09:00</span></div><div class="t-hour" style="top:216.0px"><span>10:00</span></div><div class="t-hour" style="top:288.0px"><span>11:00</span></div><div class="t-hour" style="top:360.0px"><span>12:00</span></div><div class="t-hour" style="top:432.0px"><span>13:00</span></div><div class="t-hour" style="top:504.0px"><span>14:00</span></div><div class="t-hour" style="top:576.0px"><span>15:00</span></div><div class="t-hour" style="top:648.0px"><span>16:00</span></div><div class="t-hour" style="top:720.0px"><span>17:00</span></div><div class="t-hour" style="top:792.0px"><span>18:00</span></div><div class="t-hour" style="top:864.0px"><span>19:00</span></div><div class="t-hour" style="top:936.0px"><span>20:00</span></div><div class="t-hour" style="top:1008.0px"><span>21:00</span></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card reserved venue-venetian" data-session="sample-101" title="DEMO101 Sample: Designing agent workflows with tool use
+Venetian / Level 2 | Hall A
+Breakout session / 300 - Advanced" style="top:144.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">09:00–10:00</div><div class="t-ttl"><span class="t-abbr">DEMO101</span> Sample: Designing agent workflows with tool use</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Venetian → Caesars Forum travel
+15分の移動時間を確保（概算値・要検証）" style="top:216.0px;height:28.8px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:00–10:15</div><div class="t-ttl">Venetian → Caesars Forum travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-102" title="DEMO102 Sample: Serverless event pipelines, end to end
+Venetian / Level 3 | Room 301
+Workshop / 300 - Advanced" style="top:252.0px;height:144.0px;left:0.00%;width:100.00%"><div class="t-time">10:30–12:30</div><div class="t-ttl"><span class="t-abbr">DEMO102</span> Sample: Serverless event pipelines, end to end</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div><div class="t-card reserved venue-forum" data-session="sample-103" title="DEMO103 Sample: Cost controls for AI workloads
+Caesars Forum / Level 1 | Forum 105
+Chalk talk / 200 - Intermediate" style="top:468.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">13:30–14:30</div><div class="t-ttl"><span class="t-abbr">DEMO103</span> Sample: Cost controls for AI workloads</div><div class="t-meta">Caesars Forum</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Caesars Forum → Wynn travel
+15分の移動時間を確保（概算値・要検証）" style="top:540.0px;height:28.8px;left:0.00%;width:50.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">14:30–14:45</div><div class="t-ttl">Caesars Forum → Wynn travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-forum" data-session="sample-104" title="DEMO104 Sample: Securing MCP servers in production
+Caesars Forum / Level 2 | Forum 210
+Chalk talk / 300 - Advanced" style="top:558.0px;height:72.0px;left:50.00%;width:50.00%"><div class="t-time">14:45–15:45</div><div class="t-ttl"><span class="t-abbr">DEMO104</span> Sample: Securing MCP servers in production</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Full</span></div></div><div class="t-card reserved venue-wynn" data-session="sample-106" title="DEMO106 Sample: Networking patterns for multi-account setups
+Wynn / Level 1 | Lafleur
+Breakout session / 300 - Advanced" style="top:684.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">16:30–17:30</div><div class="t-ttl"><span class="t-abbr">DEMO106</span> Sample: Networking patterns for multi-account setups</div><div class="t-meta">Wynn</div><div class="t-tags"></div></div></div><div class="t-memo" data-date="2026-12-01" data-start="420"></div></div></section><section class="t-day" id="day-2026-12-02"><h3>2026-12-02 <small>Reserved 3 / <span class="warn-text">Warnings 1</span></small></h3><div class="t-grid" data-date="2026-12-02" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"><span>07:00</span></div><div class="t-hour" style="top:72.0px"><span>08:00</span></div><div class="t-hour" style="top:144.0px"><span>09:00</span></div><div class="t-hour" style="top:216.0px"><span>10:00</span></div><div class="t-hour" style="top:288.0px"><span>11:00</span></div><div class="t-hour" style="top:360.0px"><span>12:00</span></div><div class="t-hour" style="top:432.0px"><span>13:00</span></div><div class="t-hour" style="top:504.0px"><span>14:00</span></div><div class="t-hour" style="top:576.0px"><span>15:00</span></div><div class="t-hour" style="top:648.0px"><span>16:00</span></div><div class="t-hour" style="top:720.0px"><span>17:00</span></div><div class="t-hour" style="top:792.0px"><span>18:00</span></div><div class="t-hour" style="top:864.0px"><span>19:00</span></div><div class="t-hour" style="top:936.0px"><span>20:00</span></div><div class="t-hour" style="top:1008.0px"><span>21:00</span></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card personal venue-other" title="Keynote (sample)
+Venetian
+Fictional keynote block" style="top:72.0px;height:108.0px;left:0.00%;width:50.00%;--l2:0.00%;--w2:50.00%"><div class="t-time">08:00–09:30</div><div class="t-ttl">Keynote (sample)</div><div class="t-tags"></div></div><div class="t-card reserved venue-venetian" data-session="sample-201" title="DEMO201 Sample: Retrieval patterns that survive production
+Venetian / Level 2 | Hall B
+Breakout session / 300 - Advanced" style="top:108.0px;height:72.0px;left:50.00%;width:50.00%;--l2:50.00%;--w2:50.00%"><div class="t-time">08:30–09:30</div><div class="t-ttl"><span class="t-abbr">DEMO201</span> Sample: Retrieval patterns that survive production</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag warn">⚠ Overlaps personal time (Keynote (sample))</span></div></div><div class="t-card reserved venue-venetian" data-session="sample-202" title="DEMO202 Sample: Build interactive web apps with serverless
+Venetian / Level 3 | Room 305
+Chalk talk / 200 - Intermediate" style="top:198.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">09:45–10:45</div><div class="t-ttl"><span class="t-abbr">DEMO202</span> Sample: Build interactive web apps with serverless</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Venetian → Wynn travel
+15分の移動時間を確保（概算値・要検証）" style="top:270.0px;height:28.8px;left:0.00%;width:50.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:45–11:00</div><div class="t-ttl">Venetian → Wynn travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-203" title="DEMO203 Sample: Agent evaluation, the hands-on lab
+Venetian / Level 4 | Lab 2
+Workshop / 300 - Advanced" style="top:288.0px;height:144.0px;left:50.00%;width:50.00%"><div class="t-time">11:00–13:00</div><div class="t-ttl"><span class="t-abbr">DEMO203</span> Sample: Agent evaluation, the hands-on lab</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div><div class="t-card favorite venue-forum" data-session="sample-204" title="DEMO204 Sample: Identity for autonomous agents
+Caesars Forum / Level 1 | Forum 108
+Chalk talk / 300 - Advanced" style="top:432.0px;height:72.0px;left:0.00%;width:50.00%"><div class="t-time">13:00–14:00</div><div class="t-ttl"><span class="t-abbr">DEMO204</span> Sample: Identity for autonomous agents</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Walk-up</span></div></div><div class="t-card favorite venue-forum" data-session="sample-205" title="DEMO205 Sample: Kubernetes upgrades without surprises
+Caesars Forum / Level 2 | Forum 215
+Breakout session / 300 - Advanced" style="top:468.0px;height:72.0px;left:50.00%;width:50.00%"><div class="t-time">13:30–14:30</div><div class="t-ttl"><span class="t-abbr">DEMO205</span> Sample: Kubernetes upgrades without surprises</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Seats open</span></div></div><div class="t-card reserved venue-wynn" data-session="sample-207" title="DEMO207 Sample: Data lake governance in practice
+Wynn / Level 1 | Latour
+Breakout session / 300 - Advanced" style="top:648.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">16:00–17:00</div><div class="t-ttl"><span class="t-abbr">DEMO207</span> Sample: Data lake governance in practice</div><div class="t-meta">Wynn</div><div class="t-tags"></div></div><div class="t-card personal venue-other" title="Team dinner (sample)
+Fictional personal event" style="top:828.0px;height:144.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">18:30–20:30</div><div class="t-ttl">Team dinner (sample)</div><div class="t-tags"></div></div></div><div class="t-memo" data-date="2026-12-02" data-start="420"></div></div></section><section class="t-day" id="day-2026-12-03"><h3>2026-12-03 <small>Reserved 2</small></h3><div class="t-grid" data-date="2026-12-03" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"><span>07:00</span></div><div class="t-hour" style="top:72.0px"><span>08:00</span></div><div class="t-hour" style="top:144.0px"><span>09:00</span></div><div class="t-hour" style="top:216.0px"><span>10:00</span></div><div class="t-hour" style="top:288.0px"><span>11:00</span></div><div class="t-hour" style="top:360.0px"><span>12:00</span></div><div class="t-hour" style="top:432.0px"><span>13:00</span></div><div class="t-hour" style="top:504.0px"><span>14:00</span></div><div class="t-hour" style="top:576.0px"><span>15:00</span></div><div class="t-hour" style="top:648.0px"><span>16:00</span></div><div class="t-hour" style="top:720.0px"><span>17:00</span></div><div class="t-hour" style="top:792.0px"><span>18:00</span></div><div class="t-hour" style="top:864.0px"><span>19:00</span></div><div class="t-hour" style="top:936.0px"><span>20:00</span></div><div class="t-hour" style="top:1008.0px"><span>21:00</span></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card reserved venue-venetian" data-session="sample-301" title="DEMO301 Sample: Keynote companion: what changed this year
+Venetian / Level 2 | Hall A
+Breakout session / 100 - Foundational" style="top:72.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">08:00–09:00</div><div class="t-ttl"><span class="t-abbr">DEMO301</span> Sample: Keynote companion: what changed this year</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card reserved venue-venetian" data-session="sample-303" title="DEMO303 Sample: Choosing a queue: when to use which
+Venetian / Level 3 | Room 310
+Chalk talk / 200 - Intermediate" style="top:234.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:15–11:15</div><div class="t-ttl"><span class="t-abbr">DEMO303</span> Sample: Choosing a queue: when to use which</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-304" title="DEMO304 Sample: Prompt caching and latency budgets
+Venetian / Level 3 | Room 312
+Code talk / 300 - Advanced" style="top:432.0px;height:72.0px;left:0.00%;width:100.00%"><div class="t-time">13:00–14:00</div><div class="t-ttl"><span class="t-abbr">DEMO304</span> Sample: Prompt caching and latency budgets</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Limited seats</span></div></div><div class="t-card favorite venue-mgm" data-session="sample-305" title="DEMO305 Sample: Game day: recover the broken platform
+MGM / Level 2 | Room 210
+Gamified learning / 300 - Advanced" style="top:576.0px;height:216.0px;left:0.00%;width:100.00%"><div class="t-time">15:00–18:00</div><div class="t-ttl"><span class="t-abbr">DEMO305</span> Sample: Game day: recover the broken platform</div><div class="t-meta">MGM</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div></div><div class="t-memo" data-date="2026-12-03" data-start="420"></div></div></section></div>
+<div id="vweek" class="hidden"><div class="w-wrap" style="grid-template-columns:44px repeat(3,minmax(270px,1fr))"><div class="w-axis"><h4>&nbsp;</h4><div class="t-axis" style="height:1008.0px"><div class="t-hour" style="top:0.0px"><span>07:00</span></div><div class="t-hour" style="top:72.0px"><span>08:00</span></div><div class="t-hour" style="top:144.0px"><span>09:00</span></div><div class="t-hour" style="top:216.0px"><span>10:00</span></div><div class="t-hour" style="top:288.0px"><span>11:00</span></div><div class="t-hour" style="top:360.0px"><span>12:00</span></div><div class="t-hour" style="top:432.0px"><span>13:00</span></div><div class="t-hour" style="top:504.0px"><span>14:00</span></div><div class="t-hour" style="top:576.0px"><span>15:00</span></div><div class="t-hour" style="top:648.0px"><span>16:00</span></div><div class="t-hour" style="top:720.0px"><span>17:00</span></div><div class="t-hour" style="top:792.0px"><span>18:00</span></div><div class="t-hour" style="top:864.0px"><span>19:00</span></div><div class="t-hour" style="top:936.0px"><span>20:00</span></div><div class="t-hour" style="top:1008.0px"><span>21:00</span></div></div></div><div class="w-col" id="w-2026-12-01"><h4>12/01 (Tue) <small>Reserved 3</small></h4><div class="t-grid" data-date="2026-12-01" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"></div><div class="t-hour" style="top:72.0px"></div><div class="t-hour" style="top:144.0px"></div><div class="t-hour" style="top:216.0px"></div><div class="t-hour" style="top:288.0px"></div><div class="t-hour" style="top:360.0px"></div><div class="t-hour" style="top:432.0px"></div><div class="t-hour" style="top:504.0px"></div><div class="t-hour" style="top:576.0px"></div><div class="t-hour" style="top:648.0px"></div><div class="t-hour" style="top:720.0px"></div><div class="t-hour" style="top:792.0px"></div><div class="t-hour" style="top:864.0px"></div><div class="t-hour" style="top:936.0px"></div><div class="t-hour" style="top:1008.0px"></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card reserved venue-venetian" data-session="sample-101" title="DEMO101 Sample: Designing agent workflows with tool use
+Venetian / Level 2 | Hall A
+Breakout session / 300 - Advanced" style="top:144.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">09:00–10:00</div><div class="t-ttl"><span class="t-abbr">DEMO101</span> Sample: Designing agent workflows with tool use</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Venetian → Caesars Forum travel
+15分の移動時間を確保（概算値・要検証）" style="top:216.0px;height:28.8px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:00–10:15</div><div class="t-ttl">Venetian → Caesars Forum travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-102" title="DEMO102 Sample: Serverless event pipelines, end to end
+Venetian / Level 3 | Room 301
+Workshop / 300 - Advanced" style="top:252.0px;height:144.0px;left:0.00%;width:100.00%"><div class="t-time">10:30–12:30</div><div class="t-ttl"><span class="t-abbr">DEMO102</span> Sample: Serverless event pipelines, end to end</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div><div class="t-card reserved venue-forum" data-session="sample-103" title="DEMO103 Sample: Cost controls for AI workloads
+Caesars Forum / Level 1 | Forum 105
+Chalk talk / 200 - Intermediate" style="top:468.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">13:30–14:30</div><div class="t-ttl"><span class="t-abbr">DEMO103</span> Sample: Cost controls for AI workloads</div><div class="t-meta">Caesars Forum</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Caesars Forum → Wynn travel
+15分の移動時間を確保（概算値・要検証）" style="top:540.0px;height:28.8px;left:0.00%;width:50.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">14:30–14:45</div><div class="t-ttl">Caesars Forum → Wynn travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-forum" data-session="sample-104" title="DEMO104 Sample: Securing MCP servers in production
+Caesars Forum / Level 2 | Forum 210
+Chalk talk / 300 - Advanced" style="top:558.0px;height:72.0px;left:50.00%;width:50.00%"><div class="t-time">14:45–15:45</div><div class="t-ttl"><span class="t-abbr">DEMO104</span> Sample: Securing MCP servers in production</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Full</span></div></div><div class="t-card reserved venue-wynn" data-session="sample-106" title="DEMO106 Sample: Networking patterns for multi-account setups
+Wynn / Level 1 | Lafleur
+Breakout session / 300 - Advanced" style="top:684.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">16:30–17:30</div><div class="t-ttl"><span class="t-abbr">DEMO106</span> Sample: Networking patterns for multi-account setups</div><div class="t-meta">Wynn</div><div class="t-tags"></div></div></div><div class="t-memo" data-date="2026-12-01" data-start="420"></div></div></div><div class="w-col" id="w-2026-12-02"><h4>12/02 (Wed) <small>Reserved 3 / <span class="warn-text">Warnings 1</span></small></h4><div class="t-grid" data-date="2026-12-02" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"></div><div class="t-hour" style="top:72.0px"></div><div class="t-hour" style="top:144.0px"></div><div class="t-hour" style="top:216.0px"></div><div class="t-hour" style="top:288.0px"></div><div class="t-hour" style="top:360.0px"></div><div class="t-hour" style="top:432.0px"></div><div class="t-hour" style="top:504.0px"></div><div class="t-hour" style="top:576.0px"></div><div class="t-hour" style="top:648.0px"></div><div class="t-hour" style="top:720.0px"></div><div class="t-hour" style="top:792.0px"></div><div class="t-hour" style="top:864.0px"></div><div class="t-hour" style="top:936.0px"></div><div class="t-hour" style="top:1008.0px"></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card personal venue-other" title="Keynote (sample)
+Venetian
+Fictional keynote block" style="top:72.0px;height:108.0px;left:0.00%;width:50.00%;--l2:0.00%;--w2:50.00%"><div class="t-time">08:00–09:30</div><div class="t-ttl">Keynote (sample)</div><div class="t-tags"></div></div><div class="t-card reserved venue-venetian" data-session="sample-201" title="DEMO201 Sample: Retrieval patterns that survive production
+Venetian / Level 2 | Hall B
+Breakout session / 300 - Advanced" style="top:108.0px;height:72.0px;left:50.00%;width:50.00%;--l2:50.00%;--w2:50.00%"><div class="t-time">08:30–09:30</div><div class="t-ttl"><span class="t-abbr">DEMO201</span> Sample: Retrieval patterns that survive production</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag warn">⚠ Overlaps personal time (Keynote (sample))</span></div></div><div class="t-card reserved venue-venetian" data-session="sample-202" title="DEMO202 Sample: Build interactive web apps with serverless
+Venetian / Level 3 | Room 305
+Chalk talk / 200 - Intermediate" style="top:198.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">09:45–10:45</div><div class="t-ttl"><span class="t-abbr">DEMO202</span> Sample: Build interactive web apps with serverless</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card derived venue-other" title="Venetian → Wynn travel
+15分の移動時間を確保（概算値・要検証）" style="top:270.0px;height:28.8px;left:0.00%;width:50.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:45–11:00</div><div class="t-ttl">Venetian → Wynn travel</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-203" title="DEMO203 Sample: Agent evaluation, the hands-on lab
+Venetian / Level 4 | Lab 2
+Workshop / 300 - Advanced" style="top:288.0px;height:144.0px;left:50.00%;width:50.00%"><div class="t-time">11:00–13:00</div><div class="t-ttl"><span class="t-abbr">DEMO203</span> Sample: Agent evaluation, the hands-on lab</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div><div class="t-card favorite venue-forum" data-session="sample-204" title="DEMO204 Sample: Identity for autonomous agents
+Caesars Forum / Level 1 | Forum 108
+Chalk talk / 300 - Advanced" style="top:432.0px;height:72.0px;left:0.00%;width:50.00%"><div class="t-time">13:00–14:00</div><div class="t-ttl"><span class="t-abbr">DEMO204</span> Sample: Identity for autonomous agents</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Walk-up</span></div></div><div class="t-card favorite venue-forum" data-session="sample-205" title="DEMO205 Sample: Kubernetes upgrades without surprises
+Caesars Forum / Level 2 | Forum 215
+Breakout session / 300 - Advanced" style="top:468.0px;height:72.0px;left:50.00%;width:50.00%"><div class="t-time">13:30–14:30</div><div class="t-ttl"><span class="t-abbr">DEMO205</span> Sample: Kubernetes upgrades without surprises</div><div class="t-meta">Caesars Forum</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Seats open</span></div></div><div class="t-card reserved venue-wynn" data-session="sample-207" title="DEMO207 Sample: Data lake governance in practice
+Wynn / Level 1 | Latour
+Breakout session / 300 - Advanced" style="top:648.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">16:00–17:00</div><div class="t-ttl"><span class="t-abbr">DEMO207</span> Sample: Data lake governance in practice</div><div class="t-meta">Wynn</div><div class="t-tags"></div></div><div class="t-card personal venue-other" title="Team dinner (sample)
+Fictional personal event" style="top:828.0px;height:144.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">18:30–20:30</div><div class="t-ttl">Team dinner (sample)</div><div class="t-tags"></div></div></div><div class="t-memo" data-date="2026-12-02" data-start="420"></div></div></div><div class="w-col" id="w-2026-12-03"><h4>12/03 (Thu) <small>Reserved 2</small></h4><div class="t-grid" data-date="2026-12-03" data-start="420" style="height:1008.0px"><div class="t-hour" style="top:0.0px"></div><div class="t-hour" style="top:72.0px"></div><div class="t-hour" style="top:144.0px"></div><div class="t-hour" style="top:216.0px"></div><div class="t-hour" style="top:288.0px"></div><div class="t-hour" style="top:360.0px"></div><div class="t-hour" style="top:432.0px"></div><div class="t-hour" style="top:504.0px"></div><div class="t-hour" style="top:576.0px"></div><div class="t-hour" style="top:648.0px"></div><div class="t-hour" style="top:720.0px"></div><div class="t-hour" style="top:792.0px"></div><div class="t-hour" style="top:864.0px"></div><div class="t-hour" style="top:936.0px"></div><div class="t-hour" style="top:1008.0px"></div><div class="t-band band-breakfast" style="top:0.0px;height:72.0px"><span>Breakfast</span></div><div class="t-band band-lunch" style="top:360.0px;height:72.0px"><span>Lunch</span></div><div class="t-band band-night" style="top:792.0px;height:216.0px"><span>After 18:00</span></div><div class="t-lane"><div class="t-card reserved venue-venetian" data-session="sample-301" title="DEMO301 Sample: Keynote companion: what changed this year
+Venetian / Level 2 | Hall A
+Breakout session / 100 - Foundational" style="top:72.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">08:00–09:00</div><div class="t-ttl"><span class="t-abbr">DEMO301</span> Sample: Keynote companion: what changed this year</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card reserved venue-venetian" data-session="sample-303" title="DEMO303 Sample: Choosing a queue: when to use which
+Venetian / Level 3 | Room 310
+Chalk talk / 200 - Intermediate" style="top:234.0px;height:72.0px;left:0.00%;width:100.00%;--l2:0.00%;--w2:100.00%"><div class="t-time">10:15–11:15</div><div class="t-ttl"><span class="t-abbr">DEMO303</span> Sample: Choosing a queue: when to use which</div><div class="t-meta">Venetian</div><div class="t-tags"></div></div><div class="t-card favorite venue-venetian" data-session="sample-304" title="DEMO304 Sample: Prompt caching and latency budgets
+Venetian / Level 3 | Room 312
+Code talk / 300 - Advanced" style="top:432.0px;height:72.0px;left:0.00%;width:100.00%"><div class="t-time">13:00–14:00</div><div class="t-ttl"><span class="t-abbr">DEMO304</span> Sample: Prompt caching and latency budgets</div><div class="t-meta">Venetian</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Limited seats</span></div></div><div class="t-card favorite venue-mgm" data-session="sample-305" title="DEMO305 Sample: Game day: recover the broken platform
+MGM / Level 2 | Room 210
+Gamified learning / 300 - Advanced" style="top:576.0px;height:216.0px;left:0.00%;width:100.00%"><div class="t-time">15:00–18:00</div><div class="t-ttl"><span class="t-abbr">DEMO305</span> Sample: Game day: recover the broken platform</div><div class="t-meta">MGM</div><div class="t-tags"><span class="t-tag info">☆ Favorite</span><span class="t-tag seat">Very few seats left</span></div></div></div><div class="t-memo" data-date="2026-12-03" data-start="420"></div></div></div></div></div>
+</div>
+<div class="layout hidden" id="vlist">
+<aside>
+<input class="search" id="q" type="search" placeholder="Search keywords (e.g. Bedrock)" aria-label="Search keywords">
+<div style="display:flex;gap:8px;margin:10px 0"><label class="opt" style="flex:1"><input type="checkbox" id="memoOnly">☆ Note candidates only</label><button class="btn" id="clear">Clear</button></div>
+<div id="filters"></div>
+</aside>
+<main>
+<div class="toolbar">
+<span class="count" id="count"></span>
+<label class="note">Sort <select id="sort" class="btn"><option value="time">Date and time</option><option value="rec">Recommended</option><option value="code">Code</option><option value="level">Level</option></select></label>
+<button class="btn" id="expandAll">Expand all abstracts</button>
+</div>
+<details class="recipe" id="recipe"></details>
+<div class="chips" id="chips"></div>
+<div id="list"></div>
+<div class="more"><button class="btn hidden" id="moreBtn"></button></div>
+</main>
+</div>
+<div id="vov" class="view hidden"><p class="note" style="margin-top:0">Click an item to filter the list by that condition.</p><div class="ov" id="ov"></div></div>
+<div id="vmemo" class="view hidden">
+<div class="toolbar"><span class="count" id="memoCount"></span><button class="btn" id="csv">Export CSV</button><span class="note">Overlapping candidates are shown in red (travel time between venues is not considered). These notes live in this browser only and are not reflected in your official schedule or reservations. Press ★ to remove one.</span></div>
+<div id="memoPlan"></div>
+</div>
+<script type="application/json" id="ri-data">{"data":[{"id":"sample-101","c":"DEMO101","t":"Sample: Designing agent workflows with tool use","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"300 - Advanced","tp":["Agentic AI"],"rl":[],"ar":[],"in":[],"sv":["Amazon Bedrock"],"ft":[],"ve":"Venetian","rm":"Level 2 | Hall A","dt":"2026-12-01","tm":"09:00","ln":60,"sp":[],"sa":"limited","ss":["Reserved"]},{"id":"sample-102","c":"DEMO102","t":"Sample: Serverless event pipelines, end to end","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Workshop","lv":"300 - Advanced","tp":["Serverless"],"rl":[],"ar":[],"in":[],"sv":["AWS Lambda"],"ft":[],"ve":"Venetian","rm":"Level 3 | Room 301","dt":"2026-12-01","tm":"10:30","ln":120,"sp":[],"sa":"veryLimited","rc":63,"rw":["Interest: Serverless","Format: Workshop","Very few seats left","Fits your schedule"],"ss":["Official favorite","Recommended","Seats open"]},{"id":"sample-103","c":"DEMO103","t":"Sample: Cost controls for AI workloads","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Chalk talk","lv":"200 - Intermediate","tp":["Cost Optimization"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Caesars Forum","rm":"Level 1 | Forum 105","dt":"2026-12-01","tm":"13:30","ln":60,"sp":[],"sa":"available","ss":["Reserved"]},{"id":"sample-104","c":"DEMO104","t":"Sample: Securing MCP servers in production","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Chalk talk","lv":"300 - Advanced","tp":["Security & Identity","Agentic AI"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Caesars Forum","rm":"Level 2 | Forum 210","dt":"2026-12-01","tm":"14:45","ln":60,"sp":[],"sa":"unavailable","ss":["Official favorite","Full"]},{"id":"sample-105","c":"DEMO105","t":"Sample: Observability for event-driven systems","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Code talk","lv":"300 - Advanced","tp":["Observability"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"MGM","rm":"Level 1 | Room 101","dt":"2026-12-01","tm":"15:00","ln":60,"sp":[],"sa":"available","ss":["Seats open"]},{"id":"sample-106","c":"DEMO106","t":"Sample: Networking patterns for multi-account setups","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"300 - Advanced","tp":["Networking"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Wynn","rm":"Level 1 | Lafleur","dt":"2026-12-01","tm":"16:30","ln":60,"sp":[],"sa":"limited","ss":["Reserved"]},{"id":"sample-201","c":"DEMO201","t":"Sample: Retrieval patterns that survive production","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"300 - Advanced","tp":["Agentic AI","Data"],"rl":[],"ar":[],"in":[],"sv":["Amazon Bedrock"],"ft":[],"ve":"Venetian","rm":"Level 2 | Hall B","dt":"2026-12-02","tm":"08:30","ln":60,"sp":[],"sa":"available","ss":["Reserved"]},{"id":"sample-202","c":"DEMO202","t":"Sample: Build interactive web apps with serverless","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Chalk talk","lv":"200 - Intermediate","tp":["Serverless"],"rl":[],"ar":[],"in":[],"sv":["AWS Lambda"],"ft":[],"ve":"Venetian","rm":"Level 3 | Room 305","dt":"2026-12-02","tm":"09:45","ln":60,"sp":[],"sa":"limited","ss":["Reserved"]},{"id":"sample-203","c":"DEMO203","t":"Sample: Agent evaluation, the hands-on lab","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Workshop","lv":"300 - Advanced","tp":["Agentic AI"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Venetian","rm":"Level 4 | Lab 2","dt":"2026-12-02","tm":"11:00","ln":120,"sp":[],"sa":"veryLimited","rc":88,"rw":["Favorites trend: Agentic AI","Format: Workshop","Very few seats left","Fits your schedule"],"ss":["Official favorite","Recommended","Seats open"]},{"id":"sample-204","c":"DEMO204","t":"Sample: Identity for autonomous agents","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Chalk talk","lv":"300 - Advanced","tp":["Security & Identity"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Caesars Forum","rm":"Level 1 | Forum 108","dt":"2026-12-02","tm":"13:00","ln":60,"sp":[],"sa":"walkUp","ss":["Official favorite","Walk-up"]},{"id":"sample-205","c":"DEMO205","t":"Sample: Kubernetes upgrades without surprises","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"300 - Advanced","tp":["Containers"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Caesars Forum","rm":"Level 2 | Forum 215","dt":"2026-12-02","tm":"13:30","ln":60,"sp":[],"sa":"available","rc":48,"rw":["Favorites trend: Containers","Seats open","Fits your schedule"],"ss":["Official favorite","Seats open"]},{"id":"sample-206","c":"DEMO206","t":"Sample: Lightning round: five tips for IaC reviews","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Lightning talk","lv":"200 - Intermediate","tp":["DevOps"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"MGM","rm":"Level 1 | Theater","dt":"2026-12-02","tm":"14:30","ln":20,"sp":[],"sa":"available","rc":54,"rw":["Favorites trend: DevOps","Seats open","Fits your schedule","New"],"ss":["New","Seats open"]},{"id":"sample-207","c":"DEMO207","t":"Sample: Data lake governance in practice","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"300 - Advanced","tp":["Data"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Wynn","rm":"Level 1 | Latour","dt":"2026-12-02","tm":"16:00","ln":60,"sp":[],"sa":"limited","ss":["Reserved"]},{"id":"sample-301","c":"DEMO301","t":"Sample: Keynote companion: what changed this year","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Breakout session","lv":"100 - Foundational","tp":["Strategy"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Venetian","rm":"Level 2 | Hall A","dt":"2026-12-03","tm":"08:00","ln":60,"sp":[],"sa":"available","ss":["Reserved"]},{"id":"sample-302","c":"DEMO302","t":"Sample: Resilience drills with chaos experiments","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Workshop","lv":"300 - Advanced","tp":["Resilience"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Caesars Palace","rm":"Level 1 | Octavius 4","dt":"2026-12-03","tm":"10:00","ln":120,"sp":[],"sa":"unavailable","ss":["Full"]},{"id":"sample-303","c":"DEMO303","t":"Sample: Choosing a queue: when to use which","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Chalk talk","lv":"200 - Intermediate","tp":["Serverless","Integration"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"Venetian","rm":"Level 3 | Room 310","dt":"2026-12-03","tm":"10:15","ln":60,"sp":[],"sa":"available","ss":["Reserved"]},{"id":"sample-304","c":"DEMO304","t":"Sample: Prompt caching and latency budgets","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Code talk","lv":"300 - Advanced","tp":["Agentic AI"],"rl":[],"ar":[],"in":[],"sv":["Amazon Bedrock"],"ft":[],"ve":"Venetian","rm":"Level 3 | Room 312","dt":"2026-12-03","tm":"13:00","ln":60,"sp":[],"sa":"limited","rc":100,"rw":["Favorites trend: Agentic AI","Format: Code talk","Limited seats","Fits your schedule","New"],"ss":["Official favorite","New","Recommended","Seats open"]},{"id":"sample-305","c":"DEMO305","t":"Sample: Game day: recover the broken platform","a":"This is a fictional session used only to illustrate the re-roadie view. It does not exist in the re:Invent catalog.","ty":"Gamified learning","lv":"300 - Advanced","tp":["Resilience","DevOps"],"rl":[],"ar":[],"in":[],"sv":[],"ft":[],"ve":"MGM","rm":"Level 2 | Room 210","dt":"2026-12-03","tm":"15:00","ln":180,"sp":[],"sa":"veryLimited","rc":54,"rw":["Favorites trend: Resilience","Format: Gamified learning","Very few seats left","Fits your schedule"],"ss":["Official favorite","Seats open"]}],"ja":{},"ui":{"weekdays":["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],"dayFormat":"{0}/{1} ({2})","dayTbd":"Date TBD","dot":" · ","timeBands":["Before 10:00","10:00–12:00","12:00–14:00","14:00–17:00","After 17:00","TBD"],"dims":["Status","Date","Session type","Level","Role","Topic","Area of interest","Industry","AWS service","Format","Venue","Start time"],"venueTbd":"Venue TBD","servicePlaceholder":"Filter by service name","serviceAria":"Search services","count":"{0} sessions","minutes":" ({0} min)","labelAreas":"Areas of interest","labelServices":"Services","labelIndustries":"Industries","labelFeatures":"Format","starAria":"Add to note candidates","starTitle":"Note candidate (saved in this browser only; your official schedule does not change)","recScore":"Score {0}","recWhy":" ({0})","abstractLabel":"Abstract","emptyList":"No sessions match these conditions. Try loosening the filters.","moreButton":"Show more ({0} left)","collapseAll":"Collapse abstracts","expandAll":"Expand all abstracts","stats":["Sessions","Reserved","Official favorites","New","Days","Venues"],"daysCount":"{0}","newNote":"\"New\" means sessions that were not in the snapshot of {0}.","newNoteNone":"There is no earlier snapshot to compare against for \"New\".","recipeSummary":"How recommendations are scored (click to open)","recipePriority":"priority #{0}","recipeFavorites":"favorites trend","recipeInterest":"declared interest","recipeWeight":"weight {0}","recipeNone":"There are no favorites or profile interests, so recommendations cannot be computed.","recipePoints":"Score: topic weight × 40 + preferred format 10 + open seats 10 (5 if very few left) + fits your schedule 15 + new 5 (out of 80, scaled to 100). Sessions scoring {0} or more get the \"Recommended\" mark.","recipeExcluded":"Excluded: reserved, full, or walk-up sessions; overlaps with reservations or personal time (including travel time and the minimum gap); the daily limit; days outside your attendance; above your preferred level; sponsored sessions if excluded; and starts before your earliest start time.","recipeBasis":"Weights come from your favorites; if the profile sets a theme priority, it overrides them.","overview":["By date","By session type","By role","By topic","By level","By venue","Areas of interest (top 15)","AWS services (top 15)"],"memoCount":"{0} note candidates","memoEmpty":"Press ☆ in the list and the sessions will appear here by day.","memoDayCount":" ({0})","memoTbd":"TBD","memoConflict":"⚠ Time overlap","memoRemove":"Remove from notes","memoJump":"See details in the list →","csvHeader":["Code","Title","Title (translated)","Date","Start","Minutes","Venue","Room","Type","Level","Role","Speakers"],"csvFilename":"reinvent2026_note-candidates.csv","tagReserved":"Reserved","tagClashReserved":"⚠ Overlaps a reservation ({0})","tagClashPersonal":"⚠ Overlaps personal time ({0})","tagMemo":"★ Note","tr":null},"st":{"reserved":"Reserved","favorite":"Official favorite","isNew":"New","recommend":"Recommended","open":"Seats open","full":"Full","walkUp":"Walk-up"},"lang":"en","meta":{"newBaseline":"2026-11-13","personal":[{"date":"2026-12-02","start":480,"end":570,"title":"Keynote (sample)"},{"date":"2026-12-02","start":1110,"end":1230,"title":"Team dinner (sample)"}],"px":1.2,"recipe":[{"t":"Agentic AI","w":1,"s":"favorites"},{"t":"Security & Identity","w":0.67,"s":"favorites"},{"t":"Serverless","w":0.5,"s":"interest"},{"t":"Containers","w":0.33,"s":"favorites"},{"t":"DevOps","w":0.33,"s":"favorites"},{"t":"Resilience","w":0.33,"s":"favorites"}],"threshold":60}}</script>
+<script>
+(function () {
+  'use strict';
+  var raw = JSON.parse(document.getElementById('ri-data').textContent);
+  var DATA = raw.data, JA = raw.ja, META = raw.meta, L = raw.ui, ST = raw.st;
+  var LS = 'roadie26_';
+  function lsGet(k, d) { try { var v = localStorage.getItem(LS + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+  function fmt(t) { var a = arguments; return t.replace(/\{(\d)\}/g, function (m, i) { return a[+i + 1]; }); }
+  var ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
+  function ja(v) { return JA[v] || v; }
+  function dayLabel(d) { if (!d) return L.dayTbd; var x = new Date(d + 'T12:00:00'); return fmt(L.dayFormat, x.getMonth() + 1, x.getDate(), L.weekdays[x.getDay()]); }
+  function band(t) { if (!t) return L.timeBands[5]; var h = +t.split(':')[0]; return h < 10 ? L.timeBands[0] : h < 12 ? L.timeBands[1] : h < 14 ? L.timeBands[2] : h < 17 ? L.timeBands[3] : L.timeBands[4]; }
+  function hhmm(min) { return String(Math.floor(min / 60) % 24).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
+
+  var DIMS = [
+    { k: 'ss', l: L.dims[0], open: 1 }, { k: 'dt', l: L.dims[1], open: 1 }, { k: 'ty', l: L.dims[2], open: 1 },
+    { k: 'lv', l: L.dims[3] }, { k: 'rl', l: L.dims[4] }, { k: 'tp', l: L.dims[5] }, { k: 'ar', l: L.dims[6] },
+    { k: 'in', l: L.dims[7] }, { k: 'sv', l: L.dims[8], search: 1 }, { k: 'ft', l: L.dims[9] },
+    { k: 've', l: L.dims[10] }, { k: 'tb', l: L.dims[11] }
+  ];
+  var ORDER = {
+    lv: ['100 - Foundational', '200 - Intermediate', '300 - Advanced', '400 - Expert', '500 - Distinguished', 'No Level'],
+    tb: L.timeBands,
+    ss: [ST.reserved, ST.favorite, ST.isNew, ST.recommend, ST.open, ST.full, ST.walkUp]
+  };
+  var STATUS_CLASS = {};
+  STATUS_CLASS[ST.reserved] = 'rs'; STATUS_CLASS[ST.favorite] = 'fv'; STATUS_CLASS[ST.isNew] = 'nw'; STATUS_CLASS[ST.recommend] = 'rc';
+  STATUS_CLASS[ST.open] = 'op'; STATUS_CLASS[ST.full] = 'fl'; STATUS_CLASS[ST.walkUp] = 'wu';
+
+  var byId = {};
+  DATA.forEach(function (s) {
+    byId[s.id] = s;
+    s.tb = band(s.tm);
+    s.st = s.tm ? (+s.tm.slice(0, 2)) * 60 + (+s.tm.slice(3, 5)) : null;
+    s.q = (s.c + ' ' + s.t + ' ' + s.a + ' ' + s.sp.join(' ') + ' ' + s.sv.join(' ')).toLowerCase();
+  });
+  function vals(s, k) { var v = s[k]; if (Array.isArray(v)) return v; if (v === '' && k !== 've' && k !== 'dt') return []; return [v]; }
+  function label(k, v) { return k === 'dt' ? dayLabel(v) : k === 've' ? (v || L.venueTbd) : k === 'ss' ? v : ja(v); }
+  function statusTags(s) { return s.ss.map(function (x) { return '<span class="tag st-' + (STATUS_CLASS[x] || 'op') + '">' + esc(x) + '</span>'; }).join(''); }
+
+  var sel = {}; DIMS.forEach(function (d) { sel[d.k] = new Set(); });
+  var q = '', memoOnly = false, sortBy = 'time', shown = 60, expandAll = false;
+  var memo = new Set(lsGet('memo', []));
+  var TR = lsGet('tr', {});
+  var current = [];
+
+  var OPTS = {};
+  DIMS.forEach(function (d) {
+    var c = {};
+    DATA.forEach(function (s) { vals(s, d.k).forEach(function (v) { c[v] = (c[v] || 0) + 1; }); });
+    var ks = Object.keys(c);
+    if (ORDER[d.k]) ks = ORDER[d.k].filter(function (x) { return c[x]; });
+    else if (d.k === 'dt') ks.sort(function (a, b) { return (a || '9').localeCompare(b || '9'); });
+    else ks.sort(function (a, b) { return c[b] - c[a]; });
+    OPTS[d.k] = ks;
+  });
+
+  function match(s, skip) {
+    if (memoOnly && !memo.has(s.id)) return false;
+    if (q) {
+      var words = q.split(/\s+/);
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        if (w && s.q.indexOf(w) < 0 && !(TR[s.id] && TR[s.id].t && TR[s.id].t.indexOf(w) >= 0)) return false;
+      }
+    }
+    for (var j = 0; j < DIMS.length; j++) {
+      var d = DIMS[j];
+      if (d.k === skip) continue;
+      var S = sel[d.k];
+      if (!S.size) continue;
+      if (!vals(s, d.k).some(function (v) { return S.has(v); })) return false;
+    }
+    return true;
+  }
+
+  function buildFilters() {
+    var el = $('filters');
+    el.innerHTML = DIMS.map(function (d) {
+      var opts = OPTS[d.k].map(function (v) {
+        var text = label(d.k, v);
+        var en = (d.k !== 'ss' && d.k !== 'dt' && d.k !== 've' && JA[v] && JA[v] !== v) ? '<span class="en">' + esc(v) + '</span>' : '';
+        return '<label class="opt" data-v="' + esc(v) + '"><input type="checkbox" value="' + esc(v) + '"><span>' + esc(text) + en + '</span><span class="n"></span></label>';
+      }).join('');
+      return '<details class="f" data-k="' + d.k + '"' + (d.open ? ' open' : '') + '><summary><span>' + d.l + '<span class="badge hidden"></span></span></summary>'
+        + (d.search ? '<input class="mini" placeholder="' + esc(L.servicePlaceholder) + '" aria-label="' + esc(L.serviceAria) + '">' : '')
+        + '<div class="opts">' + opts + '</div></details>';
+    }).join('');
+    el.querySelectorAll('details').forEach(function (det) {
+      var k = det.dataset.k;
+      det.addEventListener('change', function (e) {
+        if (e.target.type !== 'checkbox') return;
+        if (e.target.checked) sel[k].add(e.target.value); else sel[k].delete(e.target.value);
+        shown = 60; update();
+      });
+      var m = det.querySelector('.mini');
+      if (m) m.addEventListener('input', function () {
+        var t = m.value.toLowerCase();
+        det.querySelectorAll('.opt').forEach(function (o) { o.classList.toggle('hidden', o.dataset.v.toLowerCase().indexOf(t) < 0); });
+      });
+    });
+  }
+
+  function updateCounts() {
+    DIMS.forEach(function (d) {
+      var c = {};
+      DATA.forEach(function (s) { if (match(s, d.k)) vals(s, d.k).forEach(function (v) { c[v] = (c[v] || 0) + 1; }); });
+      var det = document.querySelector('details[data-k="' + d.k + '"]');
+      det.querySelectorAll('.opt').forEach(function (o) {
+        var n = c[o.dataset.v] || 0;
+        o.querySelector('.n').textContent = n;
+        o.classList.toggle('zero', !n);
+        o.querySelector('input').checked = sel[d.k].has(o.dataset.v);
+      });
+      var b = det.querySelector('.badge');
+      b.textContent = sel[d.k].size;
+      b.classList.toggle('hidden', !sel[d.k].size);
+    });
+  }
+
+  function lvOrder(k) { return parseInt(k, 10) || 999; }
+  function update() {
+    current = DATA.filter(function (s) { return match(s); });
+    current.sort(sortBy === 'rec'
+      ? function (a, b) { return (b.rc || 0) - (a.rc || 0) || (a.dt || '9').localeCompare(b.dt || '9') || (a.tm || '99').localeCompare(b.tm || '99'); }
+      : sortBy === 'code'
+      ? function (a, b) { return a.c.localeCompare(b.c); }
+      : sortBy === 'level'
+        ? function (a, b) { return lvOrder(a.lv) - lvOrder(b.lv) || a.c.localeCompare(b.c); }
+        : function (a, b) { return (a.dt || '9').localeCompare(b.dt || '9') || (a.tm || '99').localeCompare(b.tm || '99') || a.c.localeCompare(b.c); });
+    $('count').textContent = fmt(L.count, current.length.toLocaleString());
+    updateCounts(); renderChips(); renderList();
+    $('memon').textContent = memo.size ? '(' + memo.size + ')' : '';
+  }
+
+  function renderChips() {
+    var c = [];
+    DIMS.forEach(function (d) {
+      sel[d.k].forEach(function (v) { c.push('<button class="chip" data-k="' + d.k + '" data-v="' + esc(v) + '">' + esc(d.l) + ': ' + esc(label(d.k, v)) + ' ✕</button>'); });
+    });
+    $('chips').innerHTML = c.join('');
+  }
+  $('chips').addEventListener('click', function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    sel[b.dataset.k].delete(b.dataset.v); update();
+  });
+
+  function card(s) {
+    var tr = TR[s.id] || {};
+    var time = s.dt ? dayLabel(s.dt) + ' ' + esc(s.tm || '') + (s.ln ? esc(fmt(L.minutes, Number(s.ln))) : '') : esc(L.dayTbd);
+    var title = tr.t ? '<span class="ja">' + esc(tr.t) + '</span><span class="orig">' + esc(s.t) + '</span>' : esc(s.t);
+    var g = 'https://translate.google.com/?sl=en&tl=ja&op=translate&text=' + encodeURIComponent(s.t + '\n\n' + s.a.slice(0, 1800));
+    var isMemo = memo.has(s.id);
+    var extra = '';
+    if (s.ar.length) extra += '<p class="note">' + esc(L.labelAreas) + ': ' + s.ar.map(ja).map(esc).join(' / ') + '</p>';
+    if (s.sv.length) extra += '<p class="note">' + esc(L.labelServices) + ': ' + s.sv.map(esc).join(' / ') + '</p>';
+    if (s.in.length) extra += '<p class="note">' + esc(L.labelIndustries) + ': ' + s.in.map(ja).map(esc).join(' / ') + '</p>';
+    if (s.ft.length) extra += '<p class="note">' + esc(L.labelFeatures) + ': ' + s.ft.map(ja).map(esc).join(' / ') + '</p>';
+    return '<article class="card' + (expandAll ? ' open' : '') + (s.ss.indexOf(ST.reserved) >= 0 ? ' is-reserved' : '') + '" data-id="' + esc(s.id) + '">'
+      + '<div class="row1"><span class="code">' + esc(s.c) + '</span><h2 class="title">' + title + '</h2>'
+      + '<button class="star' + (isMemo ? ' on' : '') + '" aria-label="' + esc(L.starAria) + '" title="' + esc(L.starTitle) + '">' + (isMemo ? '★' : '☆') + '</button></div>'
+      + '<div class="meta"><span>🕒 ' + time + '</span><span>📍 ' + esc(s.ve || L.venueTbd) + (s.rm ? ' / ' + esc(s.rm) : '') + '</span>' + (s.sp.length ? '<span>🎤 ' + esc(s.sp.join(', ')) + '</span>' : '') + '</div>'
+      + '<div class="tags">' + statusTags(s) + '<span class="tag ty">' + esc(ja(s.ty)) + '</span>' + (s.lv ? '<span class="tag lv">' + esc(ja(s.lv)) + '</span>' : '')
+      + s.tp.map(function (x) { return '<span class="tag">' + esc(ja(x)) + '</span>'; }).join('')
+      + s.rl.map(function (x) { return '<span class="tag rl">' + esc(ja(x)) + '</span>'; }).join('') + '</div>'
+      + (s.rc ? '<div class="rec"><b>' + esc(fmt(L.recScore, Number(s.rc))) + '</b>' + esc(fmt(L.recWhy, (s.rw || []).join(' / '))) + '</div>' : '')
+      + '<div class="abs">' + (L.tr && tr.a ? '<p class="lbl">' + esc(L.tr.absLabel) + '</p><p class="jaabs">' + esc(tr.a) + '</p>' : '')
+      + '<p class="lbl">' + esc(L.abstractLabel) + '</p><p>' + esc(s.a) + '</p>' + extra
+      + (L.tr ? '<div class="acts">' + (tr.a ? '' : '<button class="btn trOne">' + esc(L.tr.one) + '</button>')
+        + '<a class="btn" href="' + esc(g) + '" target="_blank" rel="noopener" style="text-decoration:none">' + esc(L.tr.google) + '</a></div>' : '')
+      + '</div></article>';
+  }
+
+  function renderList() {
+    $('list').innerHTML = current.length
+      ? current.slice(0, shown).map(card).join('')
+      : '<div class="empty">' + esc(L.emptyList) + '</div>';
+    var m = $('moreBtn');
+    m.classList.toggle('hidden', current.length <= shown);
+    m.textContent = fmt(L.moreButton, Math.max(0, current.length - shown));
+  }
+
+  $('list').addEventListener('click', function (e) {
+    var c = e.target.closest('.card'); if (!c) return;
+    var s = byId[c.dataset.id];
+    if (e.target.closest('.star')) {
+      if (memo.has(s.id)) memo.delete(s.id); else memo.add(s.id);
+      lsSet('memo', Array.from(memo));
+      var b = e.target.closest('.star');
+      b.classList.toggle('on'); b.textContent = memo.has(s.id) ? '★' : '☆';
+      $('memon').textContent = memo.size ? '(' + memo.size + ')' : '';
+      renderSchedMemo();
+      return;
+    }
+    if (e.target.closest('.trOne')) {
+      translate([s], true).then(function () {
+        c.outerHTML = card(s);
+        var n = document.querySelector('.card[data-id="' + CSS.escape(s.id) + '"]'); if (n) n.classList.add('open');
+      });
+      return;
+    }
+    if (e.target.closest('a')) return;
+    c.classList.toggle('open');
+  });
+
+  // 日本語訳: Chrome 内蔵の Translator API（ブラウザ内で完結）
+  var T = L.tr, translator = null;
+  function status(t) { $('trStatus').textContent = t; }
+  function getTranslator() {
+    if (translator) return Promise.resolve(translator);
+    if (!('Translator' in self)) { status(T.noApi); return Promise.resolve(null); }
+    return Translator.availability({ sourceLanguage: 'en', targetLanguage: 'ja' }).then(function (av) {
+      if (av === 'unavailable') { status(T.unavailable); return null; }
+      status(T.preparing);
+      return Translator.create({ sourceLanguage: 'en', targetLanguage: 'ja', monitor: function (m) { m.addEventListener('downloadprogress', function (e) { status(fmt(T.downloading, Math.round(e.loaded * 100))); }); } })
+        .then(function (t) { translator = t; return t; });
+    }).catch(function (err) { status(fmt(T.failed, err.message)); return null; });
+  }
+  function translate(list, withAbs) {
+    return getTranslator().then(function (tr) {
+      if (!tr) return;
+      var n = 0;
+      var chain = Promise.resolve();
+      list.forEach(function (s) {
+        chain = chain.then(function () {
+          var o = TR[s.id] || {};
+          return Promise.resolve(o.t ? o.t : tr.translate(s.t)).then(function (t) { o.t = t; return withAbs && !o.a ? tr.translate(s.a) : o.a; })
+            .then(function (a) { if (a) o.a = a; TR[s.id] = o; n++; if (list.length > 1) status(fmt(T.progress, n, list.length)); });
+        });
+      });
+      return chain.then(function () { lsSet('tr', TR); status(fmt(T.done, n)); })
+        .catch(function (e) { lsSet('tr', TR); status(fmt(T.error, e.message)); });
+    });
+  }
+  if (T) $('trBulk').onclick = function () { translate(current.slice(0, shown), true).then(function () { renderList(); renderSchedMemo(); }); };
+  $('moreBtn').onclick = function () { shown += 60; renderList(); };
+  $('expandAll').onclick = function (e) { expandAll = !expandAll; e.target.textContent = expandAll ? L.collapseAll : L.expandAll; renderList(); };
+  var qt; $('q').addEventListener('input', function (e) { clearTimeout(qt); qt = setTimeout(function () { q = e.target.value.trim().toLowerCase(); shown = 60; update(); }, 200); });
+  $('memoOnly').onchange = function (e) { memoOnly = e.target.checked; update(); };
+  $('sort').onchange = function (e) { sortBy = e.target.value; update(); };
+  $('clear').onclick = function () {
+    DIMS.forEach(function (d) { sel[d.k].clear(); });
+    q = ''; $('q').value = ''; memoOnly = false; $('memoOnly').checked = false; update();
+  };
+
+  // 上部の統計
+  (function () {
+    function n(label) { return DATA.filter(function (s) { return s.ss.indexOf(label) >= 0; }).length; }
+    var days = OPTS.dt.filter(Boolean).length;
+    var st = [[L.stats[0], DATA.length], [L.stats[1], n(ST.reserved)], [L.stats[2], n(ST.favorite)],
+      [L.stats[3], n(ST.isNew)], [L.stats[4], fmt(L.daysCount, days)], [L.stats[5], OPTS.ve.filter(Boolean).length]];
+    $('stats').innerHTML = st.map(function (x) {
+      return '<div class="stat"><b>' + (typeof x[1] === 'number' ? x[1].toLocaleString() : esc(x[1])) + '</b><span>' + esc(x[0]) + '</span></div>';
+    }).join('');
+    $('newNote').textContent = META.newBaseline
+      ? fmt(L.newNote, META.newBaseline)
+      : L.newNoteNone;
+  })();
+
+  // おすすめの基準（トピックの重みの出どころと、点数の配分）
+  function renderRecipe() {
+    var el = $('recipe');
+    var R = META.recipe || [];
+    var src = { priority: function (r) { return fmt(L.recipePriority, Number(r.r)); }, favorites: function () { return L.recipeFavorites; }, interest: function () { return L.recipeInterest; } };
+    el.innerHTML = '<summary>' + esc(L.recipeSummary) + '</summary>'
+      + (R.length
+        ? '<ul>' + R.map(function (r) {
+          var how = src[r.s] ? src[r.s](r) : '';
+          return '<li>' + esc(ja(r.t)) + ' … ' + esc(fmt(L.recipeWeight, Number(r.w).toFixed(2))) + ' <span class="src">(' + esc(how) + ')</span></li>';
+        }).join('') + '</ul>'
+        : '<p class="note">' + esc(L.recipeNone) + '</p>')
+      + '<p class="note">' + esc(fmt(L.recipePoints, Number(META.threshold || 60))) + '</p>'
+      + '<p class="note">' + esc(L.recipeExcluded) + '</p>'
+      + '<p class="note">' + esc(L.recipeBasis) + '</p>';
+  }
+
+  // 全体像
+  function renderOv() {
+    var P = [['dt', L.overview[0]], ['ty', L.overview[1]], ['rl', L.overview[2]], ['tp', L.overview[3]], ['lv', L.overview[4]], ['ve', L.overview[5]], ['ar', L.overview[6]], ['sv', L.overview[7]]];
+    $('ov').innerHTML = P.map(function (p) {
+      var k = p[0], c = {};
+      DATA.forEach(function (s) { vals(s, k).forEach(function (v) { c[v] = (c[v] || 0) + 1; }); });
+      var ks = OPTS[k].slice(0, 15);
+      var mx = Math.max.apply(null, ks.map(function (x) { return c[x]; }).concat([1]));
+      return '<div class="panel"><h3>' + p[1] + '</h3>' + ks.map(function (v) {
+        return '<div class="bar" data-k="' + k + '" data-v="' + esc(v) + '" title="' + esc(v) + '"><span class="lab">' + esc(label(k, v)) + '</span><span class="tr"><span class="fl" style="display:block;width:' + Number(c[v] / mx * 100) + '%"></span></span><span class="v">' + Number(c[v]) + '</span></div>';
+      }).join('') + '</div>';
+    }).join('');
+  }
+  $('ov').addEventListener('click', function (e) {
+    var b = e.target.closest('.bar'); if (!b) return;
+    DIMS.forEach(function (d) { sel[d.k].clear(); });
+    sel[b.dataset.k].add(b.dataset.v); show('list'); update();
+  });
+
+  // メモ候補（このブラウザだけ。公式の予定は変わらない）
+  function renderMemo() {
+    var list = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean)
+      .sort(function (a, b) { return (a.dt || '9').localeCompare(b.dt || '9') || (a.tm || '').localeCompare(b.tm || ''); });
+    $('memoCount').textContent = fmt(L.memoCount, list.length);
+    if (!list.length) { $('memoPlan').innerHTML = '<div class="empty">' + esc(L.memoEmpty) + '</div>'; return; }
+    var cf = new Set();
+    for (var i = 0; i < list.length; i++) for (var j = i + 1; j < list.length; j++) {
+      var a = list[i], b = list[j];
+      if (a.dt && a.dt === b.dt && a.st != null && b.st != null && a.st < b.st + b.ln && b.st < a.st + a.ln) { cf.add(a.id); cf.add(b.id); }
+    }
+    var g = {};
+    list.forEach(function (s) { (g[s.dt] = g[s.dt] || []).push(s); });
+    $('memoPlan').innerHTML = Object.keys(g).map(function (d) {
+      return '<section class="mday"><h3>' + dayLabel(d) + esc(fmt(L.memoDayCount, g[d].length)) + '</h3>' + g[d].map(function (s) {
+        var end = s.st != null ? hhmm(s.st + s.ln) : '';
+        var tr = TR[s.id];
+        return '<div class="slot' + (cf.has(s.id) ? ' cf' : '') + '"><div><b>' + esc(s.tm || L.memoTbd) + '</b>' + (end ? '〜' + end : '') + (cf.has(s.id) ? '<div class="warn">' + esc(L.memoConflict) + '</div>' : '') + '</div>'
+          + '<div><button class="mstar" data-id="' + esc(s.id) + '" title="' + esc(L.memoRemove) + '" aria-label="' + esc(L.memoRemove) + '">★</button>'
+          + '<span class="code">' + esc(s.c) + '</span> ' + esc(tr && tr.t ? tr.t : s.t) + ' ' + statusTags(s)
+          + '<div class="note">' + esc(ja(s.ty)) + esc(L.dot) + esc(s.ve || '') + ' ' + esc(s.rm || '') + ' <button class="linkbtn" data-jump="' + esc(s.id) + '">' + esc(L.memoJump) + '</button></div></div></div>';
+      }).join('') + '</section>';
+    }).join('');
+  }
+  $('csv').onclick = function () {
+    var list = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean);
+    function qq(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+    var rows = list.map(function (s) { return [s.c, s.t, (TR[s.id] || {}).t || '', s.dt, s.tm, s.ln, s.ve, s.rm, ja(s.ty), ja(s.lv), s.rl.map(ja).join(' / '), s.sp.join(', ')].map(qq).join(','); });
+    var blob = new Blob([String.fromCharCode(65279) + [L.csvHeader.map(qq).join(',')].concat(rows).join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = L.csvFilename; a.click();
+  };
+
+  // ★メモを「予定」のタイムライン（日別・通しの両方）に重ねる。公式の予定・予約は変えない
+  var PX = META.px || 1.2;
+  var showMemo = lsGet('showMemo', true);
+  $('showMemo').checked = showMemo;
+  function overlap(a1, a2, b1, b2) { return a1 < b2 && b1 < a2; }
+  function memoTags(s) {
+    var tags = [];
+    var end = s.st + (s.ln || 30);
+    if (s.ss.indexOf(ST.reserved) >= 0) {
+      tags.push(['info', L.tagReserved]);
+    } else {
+      var clash = DATA.filter(function (o) { return o.id !== s.id && o.dt === s.dt && o.st != null && o.ss.indexOf(ST.reserved) >= 0 && overlap(s.st, end, o.st, o.st + (o.ln || 30)); });
+      if (clash.length) tags.push(['warn', fmt(L.tagClashReserved, clash.map(function (o) { return o.c; }).join(', '))]);
+    }
+    (META.personal || []).forEach(function (p) {
+      if (p.date === s.dt && overlap(s.st, end, p.start, p.end)) tags.push(['warn', fmt(L.tagClashPersonal, p.title)]);
+    });
+    return tags;
+  }
+  function lanesOf(list) {
+    var sorted = list.slice().sort(function (a, b) { return a.st - b.st; });
+    var placed = [], cluster = [], laneEnds = [], clusterEnd = -1;
+    function flush() {
+      cluster.forEach(function (p) { p.lanes = laneEnds.length; });
+      placed = placed.concat(cluster); cluster = []; laneEnds = [];
+    }
+    sorted.forEach(function (s) {
+      var dispEnd = s.st + Math.max(s.ln || 30, 24);
+      if (cluster.length && s.st >= clusterEnd) flush();
+      var lane = laneEnds.findIndex(function (e) { return e <= s.st; });
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(dispEnd); } else { laneEnds[lane] = dispEnd; }
+      clusterEnd = Math.max(clusterEnd, dispEnd);
+      cluster.push({ s: s, lane: lane, lanes: 1 });
+    });
+    flush();
+    return placed;
+  }
+  function renderSchedMemo() {
+    document.body.classList.toggle('show-memo', showMemo);
+    var byDate = {};
+    memo.forEach(function (id) {
+      var s = byId[id];
+      if (s && s.dt && s.st != null) (byDate[s.dt] = byDate[s.dt] || []).push(s);
+    });
+    document.querySelectorAll('.t-memo').forEach(function (box) {
+      var list = byDate[box.dataset.date] || [], start = +box.dataset.start;
+      var grid = box.parentNode;
+      grid.classList.toggle('has-memo', list.length > 0);
+      var placed = lanesOf(list);
+      var maxLanes = placed.reduce(function (m, p) { return Math.max(m, p.lanes); }, 1);
+      // 5日間通しは列が狭いので、★メモが同時に重なる数に応じてメモの列を広げる（最大60%）
+      var inWeek = !!box.closest('.w-col');
+      grid.style.setProperty('--memo-w', (inWeek ? Math.min(60, 33 + 10 * (maxLanes - 1)) : 33) + '%');
+      box.innerHTML = placed.map(function (p) {
+        var s = p.s, tr = TR[s.id], w = 100 / p.lanes;
+        var compact = p.lanes >= 3;
+        var top = Math.max(0, (s.st - start) * PX), height = Math.max(s.ln || 30, 24) * PX;
+        var tagList = memoTags(s);
+        var tags = compact
+          ? '<span class="t-tag memo-tag">★</span>' + tagList.map(function (x) { return '<span class="t-tag ' + x[0] + '" title="' + esc(x[1]) + '">' + (x[0] === 'warn' ? '⚠' : esc(x[1])) + '</span>'; }).join('')
+          : '<span class="t-tag memo-tag">' + esc(L.tagMemo) + '</span>' + tagList.map(function (x) { return '<span class="t-tag ' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('');
+        var tip = s.c + ' ' + s.t + (tagList.length ? '\n' + tagList.map(function (x) { return x[1]; }).join('\n') : '');
+        return '<div class="t-card memo' + (compact ? ' compact' : '') + '" data-id="' + esc(s.id) + '" title="' + esc(tip) + '" style="top:' + top.toFixed(1) + 'px;height:' + height.toFixed(1) + 'px;left:' + (p.lane * w).toFixed(2) + '%;width:' + w.toFixed(2) + '%">'
+          + '<button class="mstar" data-id="' + esc(s.id) + '" title="' + esc(L.memoRemove) + '" aria-label="' + esc(L.memoRemove) + '">★</button>'
+          + '<div class="t-time">' + hhmm(s.st) + '–' + hhmm(s.st + (s.ln || 30)) + '</div>'
+          + '<div class="t-tags">' + tags + '</div>'
+          + '<div class="t-ttl"><span class="t-abbr">' + esc(s.c) + '</span> ' + esc(tr && tr.t ? tr.t : s.t) + '</div>'
+          + '<div class="t-meta">' + esc(s.ve || '') + '</div></div>';
+      }).join('');
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.mstar') : null;
+    if (!b) return;
+    memo.delete(b.dataset.id); lsSet('memo', Array.from(memo)); renderSchedMemo(); renderMemo(); update();
+  });
+
+  // 予定のカード・メモ候補から、セッション一覧の詳細へ移動する。
+  // 一覧の条件（検索・絞り込み・メモのみ）はいったん解除し、そのセッションのコードで検索した状態にする
+  // （再演も同じコードで並ぶ。元に戻すときは「クリア」）
+  function jumpToSession(id) {
+    var s = byId[id];
+    if (!s) return;
+    DIMS.forEach(function (d) { sel[d.k].clear(); });
+    memoOnly = false; $('memoOnly').checked = false;
+    q = s.c.toLowerCase(); $('q').value = s.c; shown = 60;
+    show('list'); update();
+    var el = document.querySelector('.card[data-id="' + CSS.escape(id) + '"]');
+    if (!el) return;
+    el.classList.add('open', 'flash');
+    el.scrollIntoView({ block: 'center' });
+    setTimeout(function () { el.classList.remove('flash'); }, 2500);
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest || e.target.closest('.mstar')) return;
+    var c = e.target.closest('.t-card[data-session], .t-card.memo[data-id]');
+    if (c) { jumpToSession(c.dataset.session || c.dataset.id); return; }
+    var j = e.target.closest('[data-jump]');
+    if (j) jumpToSession(j.dataset.jump);
+  });
+  var showFav = lsGet('showFav', true);
+  $('showFav').checked = showFav;
+  document.body.classList.toggle('hide-fav', !showFav);
+  $('showFav').onchange = function (e) { showFav = e.target.checked; lsSet('showFav', showFav); document.body.classList.toggle('hide-fav', !showFav); };
+  $('showMemo').onchange = function (e) { showMemo = e.target.checked; lsSet('showMemo', showMemo); renderSchedMemo(); };
+  document.querySelectorAll('[data-sv]').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('[data-sv]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      $('vday').classList.toggle('hidden', b.dataset.sv !== 'day');
+      $('vweek').classList.toggle('hidden', b.dataset.sv !== 'week');
+    };
+  });
+
+  var VIEWS = { sched: 'vsched', list: 'vlist', ov: 'vov', memo: 'vmemo' };
+  function show(v) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.v === v); });
+    Object.keys(VIEWS).forEach(function (k) { $(VIEWS[k]).classList.toggle('hidden', k !== v); });
+    if (v === 'ov') renderOv();
+    if (v === 'memo') renderMemo();
+    if (v === 'sched') renderSchedMemo();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('.tab').forEach(function (t) { t.onclick = function () { show(t.dataset.v); }; });
+  renderRecipe(); buildFilters(); update(); renderSchedMemo();
+})();
+</script>
+</body></html>
