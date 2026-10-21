@@ -111,6 +111,8 @@ Besides your usual work, your goal for this trip, your stamina, your attendance 
 | `re-roadie auth login` | Signs in to Builder ID in the browser |
 | `re-roadie auth status` | Shows the sign-in state |
 
+`re-roadie` is an alias for `node dist/cli.js`. After `npm run build`, run it from the repository root as `node dist/cli.js <subcommand>` (or `npx re-roadie <subcommand>`). To call plain `re-roadie`, run `npm link` in the root.
+
 ### Using it from Claude Code (MCP server)
 
 Besides the CLI, `re-roadie mcp` starts an MCP server (stdio). When you open this project in Claude Code, the `session-roadie` server registered in `.mcp.json` and `.claude/skills/re-roadie/SKILL.md` (a procedure that defines the order in which MCP tools are called) become available automatically.

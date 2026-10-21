@@ -114,7 +114,7 @@ node dist/cli.js auth login
 | `re-roadie auth status` | サインイン状態を表示する |
 | `re-roadie auth logout` | サインアウトする（refresh tokenを失効させ、ローカルのトークンを削除し、Builder IDのブラウザセッションも終了する） |
 
-ビルド前に試す場合は `node dist/cli.js <サブコマンド>` のように読み替えてください。
+`re-roadie` は `node dist/cli.js` の別名です。`npm run build` のあと、リポジトリのルートでは `node dist/cli.js <サブコマンド>`（または `npx re-roadie <サブコマンド>`）として実行できます。`re-roadie` だけで呼びたいときは、ルートで `npm link` を実行してください。
 
 `apply`/`travel-blocks`/`notes apply` は実行前に確認プロンプトを出します。自動実行したい場合は `-y`/`--yes` を付けてください。
 
