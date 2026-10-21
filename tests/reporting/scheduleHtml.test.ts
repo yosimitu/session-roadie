@@ -325,3 +325,49 @@ describe('buildScheduleHtml', () => {
     });
   });
 });
+
+describe('buildScheduleHtml: lang', () => {
+  const a = session('a', 'AIM101', '2026-11-30', '08:30', '60', 'MGM Grand', { topics: ['Security & Identity'], seatAvailability: 'available' });
+  const b = session('b', 'AIM102', '2026-12-01', '10:00', '60', 'Venetian', { seatAvailability: 'unavailable' });
+  const en = (s: Schedule, sessions: Session[], profile?: Profile) =>
+    buildScheduleHtml({ schedule: s, sessions, profile, generatedAt: GENERATED_AT, lang: 'en' });
+  // 埋め込みのJSONとスクリプトを除いた、HTML本体
+  const body = (out: string) => out.replace(/<script[\s\S]*?<\/script>/g, '');
+
+  it('省略時は日本語で、内蔵翻訳のボタンがある', () => {
+    const out = html(schedule(['a']), [a]);
+    expect(out).toContain('<html lang="ja">');
+    expect(out).toContain('id="trBulk"');
+  });
+
+  it('en では画面の文言が英語になり、日本語は本体に残らない', () => {
+    const out = en(schedule(['a', 'b']), [a, b]);
+    expect(out).toContain('<html lang="en">');
+    expect(out).toContain('Reserved 2 / Favorites 0');
+    expect(out).toContain('Session list');
+    expect(out).toContain('All 2 days');
+    expect(body(out)).not.toMatch(/[\u3040-\u30ff\u4e00-\u9fff]/);
+  });
+
+  it('en では英→日の翻訳ボタンを出さず、埋め込みの文言・状態ラベルも英語になる', () => {
+    const out = en(schedule(['a']), [a]);
+    expect(out).not.toContain('id="trBulk"');
+    const data = JSON.parse(/id="ri-data">([\s\S]*?)<\/script>/.exec(out)![1]) as { lang: string; ui: { tr: unknown }; st: { reserved: string }; ja: object; data: { ss: string[] }[] };
+    expect(data.lang).toBe('en');
+    expect(data.ui.tr).toBeNull();
+    expect(data.st.reserved).toBe('Reserved');
+    expect(data.ja).toEqual({});
+    expect(data.data[0].ss).toEqual(['Reserved']);
+  });
+
+  it('en では警告・曜日・時間帯も英語になる', () => {
+    const lunch: Profile = { lunchBreak: true };
+    const noon = session('n', 'AIM103', '2026-11-30', '11:30', '60', 'MGM Grand');
+    const out = en(schedule(['n'], ['b']), [noon, b], lunch);
+    expect(out).toContain('⚠ Overlaps lunch');
+    expect(out).toContain('☆ Favorite');
+    expect(out).toContain('Full');
+    expect(out).toContain('Mon');
+    expect(out).toContain('Lunch');
+  });
+});

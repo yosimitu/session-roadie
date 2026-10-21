@@ -30,6 +30,7 @@ import { runTrends, formatTrends } from './commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
+import { parseLang } from './reporting/i18n.js';
 import { loadProfile } from './profile/profileStore.js';
 import { startMcpServer } from './mcp/server.js';
 import type { BulkResult, Session } from './api/types.js';
@@ -267,13 +268,15 @@ program
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-d, --date <date>', '「予定」タブをこの日（会場PSTの YYYY-MM-DD）だけにする。省略時は全日')
   .option('--new-since <date>', '「新着」の比較元にするスナップショットの日付（YYYY-MM-DD）。省略時は今日より前で最新の日付')
+  .option('--lang <lang>', '画面の言語（ja か en）。カタログ由来のタイトル・概要は翻訳しない', 'ja')
   .option('-o, --out <file>', '出力先', SCHEDULE_HTML_PATH)
-  .action(async (options: { eventId: string; date?: string; newSince?: string; out: string }) => {
+  .action(async (options: { eventId: string; date?: string; newSince?: string; lang: string; out: string }) => {
+    const lang = parseLang(options.lang);
     const snapshot = loadSnapshot(options.eventId, DATA_DIR);
     if (!snapshot) throw new Error(`ローカルスナップショット（${options.eventId}）がありません。先に sync を実行してください`);
     const result = await runScheduleView(await createClient(), options.eventId, {
       snapshot, outPath: options.out, profile: loadProfile(PROFILE_PATH), date: options.date,
-      dataDir: DATA_DIR, newSince: options.newSince,
+      dataDir: DATA_DIR, newSince: options.newSince, lang,
     });
     console.log(`保存しました: ${result.path}（予約 ${result.reserved}件 / お気に入り ${result.favorites}件 / 個人予定 ${result.personalTime}件）`);
   });

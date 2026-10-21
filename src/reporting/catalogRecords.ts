@@ -1,18 +1,11 @@
 import type { Session } from '../api/types.js';
 import { RECOMMEND_THRESHOLD, type Recommendation } from '../planning/recommend.js';
+import { STATUS, type Lang } from './i18n.js';
 
 // カタログ全件を、予定表HTMLの「セッション一覧」「全体像」用の軽いレコードにする。
 // キーは短く（ページに埋め込むため）。値は後から表示側でエスケープする。
 
-export const STATUS_LABELS = {
-  reserved: '予約済み',
-  favorite: '公式お気に入り',
-  isNew: '新着',
-  recommend: 'おすすめ',
-  open: '空席あり',
-  full: '満席',
-  walkUp: '当日先着',
-} as const;
+export const STATUS_LABELS = STATUS.ja;
 
 export interface CatalogRecord {
   id: string; // sessionId
@@ -45,22 +38,23 @@ export interface StatusFlags {
   newIds: Set<string>;
 }
 
-function statusOf(s: Session, flags: StatusFlags, rec?: Recommendation): string[] {
+function statusOf(s: Session, flags: StatusFlags, lang: Lang, rec?: Recommendation): string[] {
+  const labels = STATUS[lang];
   const ss: string[] = [];
   const reserved = flags.reserved.has(s.sessionId);
-  if (reserved) ss.push(STATUS_LABELS.reserved);
-  if (flags.favorites.has(s.sessionId)) ss.push(STATUS_LABELS.favorite);
-  if (flags.newIds.has(s.sessionId)) ss.push(STATUS_LABELS.isNew);
-  if (rec && rec.score >= RECOMMEND_THRESHOLD) ss.push(STATUS_LABELS.recommend);
+  if (reserved) ss.push(labels.reserved);
+  if (flags.favorites.has(s.sessionId)) ss.push(labels.favorite);
+  if (flags.newIds.has(s.sessionId)) ss.push(labels.isNew);
+  if (rec && rec.score >= RECOMMEND_THRESHOLD) ss.push(labels.recommend);
   if (!reserved && s.seatAvailability) {
-    if (s.seatAvailability === 'unavailable') ss.push(STATUS_LABELS.full);
-    else if (s.seatAvailability === 'walkUp') ss.push(STATUS_LABELS.walkUp);
-    else ss.push(STATUS_LABELS.open);
+    if (s.seatAvailability === 'unavailable') ss.push(labels.full);
+    else if (s.seatAvailability === 'walkUp') ss.push(labels.walkUp);
+    else ss.push(labels.open);
   }
   return ss;
 }
 
-export function buildCatalogRecords(sessions: Session[], flags: StatusFlags, recs?: Map<string, Recommendation>): CatalogRecord[] {
+export function buildCatalogRecords(sessions: Session[], flags: StatusFlags, recs?: Map<string, Recommendation>, lang: Lang = 'ja'): CatalogRecord[] {
   return sessions.map((s): CatalogRecord => ({
     id: s.sessionId,
     c: s.abbreviation ?? s.sessionId,
@@ -82,7 +76,7 @@ export function buildCatalogRecords(sessions: Session[], flags: StatusFlags, rec
     sp: (s.speakers ?? []).map((sp) => sp.name ?? '').filter(Boolean),
     ...(s.seatAvailability ? { sa: s.seatAvailability } : {}),
     ...(recs?.has(s.sessionId) ? { rc: recs.get(s.sessionId)!.score, rw: recs.get(s.sessionId)!.reasons } : {}),
-    ss: statusOf(s, flags, recs?.get(s.sessionId)),
+    ss: statusOf(s, flags, lang, recs?.get(s.sessionId)),
   }));
 }
 

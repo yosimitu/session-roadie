@@ -4,6 +4,7 @@ import type { ApiClient } from '../api/client.js';
 import type { Session } from '../api/types.js';
 import type { Profile } from '../profile/profileStore.js';
 import { buildScheduleHtml } from '../reporting/scheduleHtml.js';
+import type { Lang } from '../reporting/i18n.js';
 import { listSnapshotDates, loadSnapshotByDate } from '../catalog/store.js';
 import { runScheduleStatus } from './scheduleStatus.js';
 
@@ -14,6 +15,7 @@ export interface ScheduleViewOptions {
   date?: string; // 会場PSTの "YYYY-MM-DD"。「予定」タブをその日だけにする。省略時は全日
   dataDir?: string; // 日付別スナップショットの場所。指定すると、比較元との差分を「新着」にする
   newSince?: string; // 新着の比較元にするスナップショットの日付。省略時は今日より前で最新の日付
+  lang?: Lang; // 画面の言語。省略時は日本語
 }
 
 export interface ScheduleViewResult {
@@ -56,6 +58,7 @@ export async function runScheduleView(client: ApiClient, eventId: string, option
     options: { date: options.date },
     newSessionIds: news.ids,
     newBaseline: news.baseline,
+    lang: options.lang,
   });
   mkdirSync(dirname(options.outPath), { recursive: true });
   writeFileSync(options.outPath, html, 'utf-8');

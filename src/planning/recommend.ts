@@ -2,6 +2,7 @@ import type { Session } from '../api/types.js';
 import type { Profile } from '../profile/profileStore.js';
 import { INTEREST_OPTIONS } from '../onboarding/wizard.js';
 import { JA_LABELS } from '../reporting/jaLabels.js';
+import { RECOMMEND, type Lang } from '../reporting/i18n.js';
 import { ARRIVAL_BUFFER_MINUTES, getTravelMinutes } from '../schedule/travelTime.js';
 import { isSponsored } from '../catalog/search.js';
 import { optimizeDefaultsFromProfile } from './preferences.js';
@@ -38,6 +39,7 @@ export interface RecommendInput {
   busy: BusyRange[];
   profile?: Profile;
   newIds?: Set<string>;
+  lang?: Lang; // おすすめの理由の言語。省略時は日本語（英語のときはタグ類も原文のまま）
 }
 
 export interface Recommendation {
@@ -58,7 +60,6 @@ export interface RecommendResult {
 }
 
 const toMinutes = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-const ja = (value: string): string => JA_LABELS[value] ?? value;
 
 interface Slot {
   date: string;
@@ -110,6 +111,8 @@ function topicWeights(sessions: Session[], favoriteIds: string[], profile?: Prof
 export function recommendSessions(input: RecommendInput): RecommendResult {
   const { sessions, reservedIds, favoriteIds, busy, profile } = input;
   const newIds = input.newIds ?? new Set<string>();
+  const text = RECOMMEND[input.lang ?? 'ja'];
+  const ja = (value: string): string => (input.lang === 'en' ? value : JA_LABELS[value] ?? value);
   const weights = topicWeights(sessions, favoriteIds, profile);
   const defaults = optimizeDefaultsFromProfile(profile);
   const minGap = defaults.minGapMinutes ?? 0;
@@ -161,28 +164,28 @@ export function recommendSessions(input: RecommendInput): RecommendResult {
 
     let points = POINTS.topic * best.weight;
     const reasons: string[] = [
-      best.source === 'priority' ? `優先${best.rank}位: ${ja(best.topic)}`
-        : best.source === 'favorites' ? `お気に入りの傾向: ${ja(best.topic)}` : `関心: ${ja(best.topic)}`,
+      best.source === 'priority' ? text.priority(best.rank ?? 0, ja(best.topic))
+        : best.source === 'favorites' ? text.favorites(ja(best.topic)) : text.interest(ja(best.topic)),
     ];
     if (s.type && preferredTypes.has(s.type.toLowerCase())) {
       points += POINTS.type;
-      reasons.push(`形式: ${ja(s.type)}`);
+      reasons.push(text.type(ja(s.type)));
     }
     if (s.seatAvailability === 'available') {
       points += POINTS.seatOpen;
-      reasons.push('空席あり');
+      reasons.push(text.open);
     } else if (s.seatAvailability === 'limited') {
       points += POINTS.seatOpen;
-      reasons.push('残り少なめ');
+      reasons.push(text.limited);
     } else if (s.seatAvailability === 'veryLimited') {
       points += POINTS.seatVeryLimited;
-      reasons.push('残りわずか');
+      reasons.push(text.veryLimited);
     }
     points += POINTS.fit;
-    reasons.push('予定に収まる');
+    reasons.push(text.fits);
     if (newIds.has(s.sessionId)) {
       points += POINTS.isNew;
-      reasons.push('新着');
+      reasons.push(text.isNew);
     }
     byIdResult.set(s.sessionId, { score: Math.round((points / MAX_POINTS) * 100), reasons });
   }

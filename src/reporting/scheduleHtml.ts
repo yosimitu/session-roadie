@@ -10,6 +10,7 @@ import { TRAVEL_BLOCK_DESCRIPTION_MARKER } from '../schedule/travelBlock.js';
 import { buildCatalogRecords, serializeForScript } from './catalogRecords.js';
 import { CLIENT_SCRIPT } from './catalogClient.js';
 import { JA_LABELS } from './jaLabels.js';
+import { CLIENT, PAGE, STATUS, type Lang, type PageStrings } from './i18n.js';
 
 // 現在のスケジュール（予約・お気に入り・個人予定）を日別のタイムラインにし、カタログ全件の一覧・全体像・
 // ブラウザ内のメモ候補と合わせて、1枚のHTMLにする。参照専用で、公式の予定の変更や書き込みは行わない。
@@ -31,6 +32,7 @@ export interface ScheduleHtmlInput {
   options?: { date?: string }; // 指定すると「予定」タブをその日（会場PST）だけにする（一覧・全体像は全件）
   newSessionIds?: string[]; // 「新着」として印を付けるセッション（比較元のスナップショットに無かったもの）
   newBaseline?: string; // 新着の比較元スナップショットの日付（表示用）
+  lang?: Lang; // 画面の言語。省略時は日本語（カタログ由来のタイトル・概要は翻訳しない）
 }
 
 type Kind = 'reserved' | 'favorite' | 'personal' | 'derived';
@@ -59,14 +61,6 @@ const esc = (value: string): string =>
 const pad = (n: number): string => String(n).padStart(2, '0');
 const formatMinutes = (min: number): string => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
 const toMinutes = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-
-const SEAT_LABELS: Record<SeatAvailability, string> = {
-  available: '空席あり',
-  limited: '残り少なめ',
-  veryLimited: '残りわずか',
-  unavailable: '満席',
-  walkUp: '当日先着',
-};
 
 const VENUE_CLASSES: Record<string, string> = {
   MGM: 'mgm',
@@ -110,7 +104,7 @@ function sessionDetail(s: Session): string {
   ].filter(Boolean).join('\n');
 }
 
-function buildItems(input: ScheduleHtmlInput): { items: Item[]; missing: string[] } {
+function buildItems(input: ScheduleHtmlInput, P: PageStrings): { items: Item[]; missing: string[] } {
   const { schedule, sessions, profile } = input;
   const byId = new Map(sessions.map((s) => [s.sessionId, s]));
   const missing: string[] = [];
@@ -142,8 +136,8 @@ function buildItems(input: ScheduleHtmlInput): { items: Item[]; missing: string[
     const s = byId.get(id);
     const range = s && sessionRange(s);
     if (!s || !range) continue;
-    const tags: Tag[] = [{ cls: 'info', text: '☆ お気に入り' }];
-    if (s.seatAvailability) tags.push({ cls: 'seat', text: SEAT_LABELS[s.seatAvailability] });
+    const tags: Tag[] = [{ cls: 'info', text: P.favoriteTag }];
+    if (s.seatAvailability) tags.push({ cls: 'seat', text: P.seat[s.seatAvailability] });
     items.push({
       kind: 'favorite', ...range, title: s.title, abbreviation: s.abbreviation, sessionId: s.sessionId,
       venue: s.venue, detail: sessionDetail(s), tags,
@@ -164,13 +158,13 @@ function buildItems(input: ScheduleHtmlInput): { items: Item[]; missing: string[
 
   // 予約同士の時間重複
   for (const group of findConflicts(reservedSessions)) {
-    for (const s of group) itemFor.get(s.sessionId)?.tags.push({ cls: 'warn', text: '⚠ 重複' });
+    for (const s of group) itemFor.get(s.sessionId)?.tags.push({ cls: 'warn', text: P.overlapTag });
   }
 
   // 予約と個人予定（基調講演など。re:Roadie が書いたブロックは除く）の重なり
   for (const p of personalItems.filter((x) => x.kind === 'personal')) {
     for (const r of items.filter((x) => x.kind === 'reserved' && x.date === p.date)) {
-      if (r.start < p.end && p.start < r.end) r.tags.push({ cls: 'warn', text: `⚠ 個人予定と重複（${p.title}）` });
+      if (r.start < p.end && p.start < r.end) r.tags.push({ cls: 'warn', text: P.personalOverlapTag(p.title) });
     }
   }
 
@@ -179,13 +173,13 @@ function buildItems(input: ScheduleHtmlInput): { items: Item[]; missing: string[
     if (block.result.sufficient) continue;
     itemFor.get(block.to.sessionId)?.tags.push({
       cls: 'warn',
-      text: `⚠ 移動不足（必要 ${block.result.neededMinutes}分＝移動${block.result.requiredMinutes}分＋開始${block.result.arrivalBufferMinutes}分前までの到着 / 空き ${block.result.availableMinutes}分）`,
+      text: P.travelShortTag(block.result.neededMinutes, block.result.requiredMinutes, block.result.arrivalBufferMinutes, block.result.availableMinutes),
     });
   }
 
   // 昼休みにかかる（プロフィールで警告が有効なときだけ）
   if (profile?.lunchBreak) {
-    for (const w of lunchOverlapWarnings(reservedSessions)) itemFor.get(w.sessionId)?.tags.push({ cls: 'warn', text: '⚠ 昼にかかる' });
+    for (const w of lunchOverlapWarnings(reservedSessions)) itemFor.get(w.sessionId)?.tags.push({ cls: 'warn', text: P.lunchTag });
   }
 
   return { items, missing };
@@ -253,16 +247,14 @@ function renderCard(p: Placed, dayStart: number, withoutFavorites?: Placed): str
 
 // タイムラインの背景に描く時間帯（会場現地）。予定の組み立てや警告には使わない、表示だけの目安
 const TIME_BANDS = [
-  { cls: 'breakfast', label: '朝食', start: 7 * 60, end: 8 * 60 },
-  { cls: 'lunch', label: 'ランチ', start: 12 * 60, end: 13 * 60 }, // 昼にかかる回の警告（lunchBreak）と同じ時間帯
-  { cls: 'night', label: '18時以降', start: 18 * 60, end: MINUTES_PER_DAY },
-];
+  { cls: 'breakfast', start: 7 * 60, end: 8 * 60 },
+  { cls: 'lunch', start: 12 * 60, end: 13 * 60 }, // 昼にかかる回の警告（lunchBreak）と同じ時間帯
+  { cls: 'night', start: 18 * 60, end: MINUTES_PER_DAY },
+] as const;
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
-
-function weekdayLabel(date: string): string {
+function weekdayLabel(date: string, P: PageStrings): string {
   const d = new Date(`${date}T12:00:00Z`);
-  return `${date.slice(5).replace('-', '/')}(${WEEKDAYS[d.getUTCDay()] ?? ''})`;
+  return P.weekdayLabel(date.slice(5).replace('-', '/'), P.weekdays[d.getUTCDay()] ?? '');
 }
 
 interface Range {
@@ -290,7 +282,7 @@ function hourLines(range: Range, labels: boolean): string {
   return lines.join('');
 }
 
-function renderGrid(date: string, items: Item[], range: Range, withLabels = true): string {
+function renderGrid(date: string, items: Item[], range: Range, P: PageStrings, withLabels = true): string {
   const height = (range.end - range.start) * PX_PER_MINUTE;
   const hours = [hourLines(range, withLabels)];
   const withoutFavorites = new Map(placeLanes(items.filter((i) => i.kind !== 'favorite')).map((p) => [p.item, p]));
@@ -300,33 +292,33 @@ function renderGrid(date: string, items: Item[], range: Range, withLabels = true
     const from = Math.max(b.start, range.start);
     const to = Math.min(b.end, range.end);
     if (to <= from) return [];
-    return [`<div class="t-band band-${b.cls}" style="top:${((from - range.start) * PX_PER_MINUTE).toFixed(1)}px;height:${((to - from) * PX_PER_MINUTE).toFixed(1)}px"><span>${b.label}</span></div>`];
+    return [`<div class="t-band band-${b.cls}" style="top:${((from - range.start) * PX_PER_MINUTE).toFixed(1)}px;height:${((to - from) * PX_PER_MINUTE).toFixed(1)}px"><span>${P.bands[b.cls]}</span></div>`];
   });
   return `<div class="t-grid" data-date="${esc(date)}" data-start="${range.start}" style="height:${height.toFixed(1)}px">`
     + `${hours.join('')}${bands.join('')}<div class="t-lane">${cards}</div>`
     + `<div class="t-memo" data-date="${esc(date)}" data-start="${range.start}"></div></div>`;
 }
 
-function daySummary(items: Item[]): string {
+function daySummary(items: Item[], P: PageStrings): string {
   const reservedCount = items.filter((i) => i.kind === 'reserved').length;
   const warnCount = items.reduce((n, i) => n + i.tags.filter((t) => t.cls === 'warn').length, 0);
-  return `予約 ${reservedCount}件${warnCount > 0 ? ` / <span class="warn-text">警告 ${warnCount}件</span>` : ''}`;
+  return P.daySummary(reservedCount, warnCount);
 }
 
-function renderDay(date: string, items: Item[], today: string): string {
-  const badge = date === today ? '<span class="today">今日</span>' : '';
-  return `<section class="t-day" id="day-${esc(date)}"><h3>${esc(date)} ${badge}<small>${daySummary(items)}</small></h3>`
-    + `${renderGrid(date, items, rangeOf(items))}</section>`;
+function renderDay(date: string, items: Item[], today: string, P: PageStrings): string {
+  const badge = date === today ? `<span class="today">${P.today}</span>` : '';
+  return `<section class="t-day" id="day-${esc(date)}"><h3>${esc(date)} ${badge}<small>${daySummary(items, P)}</small></h3>`
+    + `${renderGrid(date, items, rangeOf(items), P)}</section>`;
 }
 
 /** 全日を横に並べる。日をまたいで時刻が揃うよう、時間軸は全日で共通にする */
-function renderWeek(dates: string[], byDate: Map<string, Item[]>, today: string): string {
+function renderWeek(dates: string[], byDate: Map<string, Item[]>, today: string, P: PageStrings): string {
   const range = rangeOf(dates.flatMap((d) => byDate.get(d) ?? []));
   const cols = dates.map((d) => {
     const items = byDate.get(d) ?? [];
-    const badge = d === today ? '<span class="today">今日</span>' : '';
-    return `<div class="w-col" id="w-${esc(d)}"><h4>${esc(weekdayLabel(d))} ${badge}<small>${daySummary(items)}</small></h4>`
-      + `${renderGrid(d, items, range, false)}</div>`;
+    const badge = d === today ? `<span class="today">${P.today}</span>` : '';
+    return `<div class="w-col" id="w-${esc(d)}"><h4>${esc(weekdayLabel(d, P))} ${badge}<small>${daySummary(items, P)}</small></h4>`
+      + `${renderGrid(d, items, range, P, false)}</div>`;
   });
   // 時間スケールは日ごとに重ねず、左端に1本だけ置く（横にスクロールしても残る）
   const axis = `<div class="w-axis"><h4>&nbsp;</h4><div class="t-axis" style="height:${((range.end - range.start) * PX_PER_MINUTE).toFixed(1)}px">${hourLines(range, true)}</div></div>`;
@@ -501,7 +493,9 @@ details.f[open] summary::after{content:"－"}
 `;
 
 export function buildScheduleHtml(input: ScheduleHtmlInput): string {
-  const { items: allItems, missing } = buildItems(input);
+  const lang = input.lang ?? 'ja';
+  const P = PAGE[lang];
+  const { items: allItems, missing } = buildItems(input, P);
   const only = input.options?.date;
   const items = only ? allItems.filter((i) => i.date === only) : allItems;
   const today = new Date(input.generatedAt.getTime() - VENUE_UTC_OFFSET_MS).toISOString().slice(0, 10);
@@ -519,11 +513,11 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
     .map((d) => `<a href="#day-${esc(d)}"${d === today ? ' class="is-today"' : ''}>${esc(d.slice(5))}</a>`)
     .join('');
   const days = dates.length > 0
-    ? dates.map((d) => renderDay(d, byDate.get(d) ?? [], today)).join('')
-    : '<div class="empty">表示できる予定がありません。</div>';
-  const week = dates.length > 0 ? renderWeek(dates, byDate, today) : '';
+    ? dates.map((d) => renderDay(d, byDate.get(d) ?? [], today, P)).join('')
+    : `<div class="empty">${P.noSchedule}</div>`;
+  const week = dates.length > 0 ? renderWeek(dates, byDate, today, P) : '';
   const missingBlock = missing.length > 0
-    ? `<div class="missing">カタログに見つからない予約（描画できませんでした）: ${missing.map(esc).join(', ')}</div>`
+    ? `<div class="missing">${P.missing(missing.map(esc).join(', '))}</div>`
     : '';
 
   const personal = allItems
@@ -537,39 +531,41 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
     busy: personal,
     profile: input.profile,
     newIds: new Set(input.newSessionIds ?? []),
+    lang,
   });
   const records = buildCatalogRecords(input.sessions, {
     reserved: new Set(input.schedule.reserved),
     favorites: new Set(input.schedule.favorites),
     newIds: new Set(input.newSessionIds ?? []),
-  }, recommendation.byId);
+  }, recommendation.byId, lang);
   const recipe = recommendation.recipe.slice(0, 12).map((r) => ({ t: r.topic, w: Number(r.weight.toFixed(2)), s: r.source, ...(r.rank ? { r: r.rank } : {}) }));
   const embedded = serializeForScript({
-    data: records, ja: JA_LABELS, meta: { newBaseline: input.newBaseline ?? '', personal, px: PX_PER_MINUTE, recipe, threshold: RECOMMEND_THRESHOLD },
+    data: records, ja: lang === 'ja' ? JA_LABELS : {}, ui: CLIENT[lang], st: STATUS[lang], lang, meta: { newBaseline: input.newBaseline ?? '', personal, px: PX_PER_MINUTE, recipe, threshold: RECOMMEND_THRESHOLD },
   });
 
+  const translateButton = P.translateAll ? `<button class="btn pri" id="trBulk">${P.translateAll}</button>\n<span class="note" id="trStatus"></span>\n` : '';
   return `<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>re:Roadie 予定</title><style>${STYLE}</style></head><body>
-<header><h1>re:Roadie 予定とセッションカタログ</h1>
-<p class="sub">参照専用です。この画面から公式の予定は変更できません。☆のメモ候補はこのブラウザだけに保存されます。</p>
+<html lang="${P.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${P.title}</title><style>${STYLE}</style></head><body>
+<header><h1>${P.heading}</h1>
+<p class="sub">${P.subtitle}</p>
 <div class="stats" id="stats"></div>
 <p class="note" id="newNote"></p>
-<p class="note">時刻はすべて会場現地時間（PST）です。日本時間は +17時間（例: 現地 08:30 は日本時間 翌日 01:30）。</p>
-<p class="note">作成: ${esc(input.generatedAt.toISOString())}（UTC）。</p></header>
+<p class="note">${P.timezoneNote}</p>
+<p class="note">${esc(P.created(input.generatedAt.toISOString()))}</p></header>
 <nav class="tabs" role="tablist">
-<button class="tab on" data-v="sched" role="tab">予定</button>
-<button class="tab" data-v="list" role="tab">セッション一覧</button>
-<button class="tab" data-v="ov" role="tab">全体像</button>
-<button class="tab" data-v="memo" role="tab">メモ候補 <span id="memon"></span></button>
+<button class="tab on" data-v="sched" role="tab">${P.tabSchedule}</button>
+<button class="tab" data-v="list" role="tab">${P.tabList}</button>
+<button class="tab" data-v="ov" role="tab">${P.tabOverview}</button>
+<button class="tab" data-v="memo" role="tab">${P.tabMemo} <span id="memon"></span></button>
 </nav>
 <div id="vsched" class="view">
-<div class="note">予約 ${reservedTotal}件 / お気に入り ${favoriteTotal}件（未予約） / <span class="warn-text">警告 ${warnTotal}件</span></div>
+<div class="note">${P.scheduleSummary(reservedTotal, favoriteTotal, warnTotal)}</div>
 <div class="toolbar sched-bar">
-<span class="seg"><button class="btn on" data-sv="day">日別</button><button class="btn" data-sv="week">${dates.length}日間通し</button></span>
-<label class="opt"><input type="checkbox" id="showFav" checked>未予約のお気に入りも表示</label>
-<label class="opt"><input type="checkbox" id="showMemo" checked>★メモも表示</label>
-<span class="note">カードをクリックすると、セッション一覧の詳細に移動します。一覧で付けた★（このブラウザだけのメモ）は右側の列に重なります。公式の予約・お気に入りは変わりません。</span>
+<span class="seg"><button class="btn on" data-sv="day">${P.segDay}</button><button class="btn" data-sv="week">${P.segWeek(dates.length)}</button></span>
+<label class="opt"><input type="checkbox" id="showFav" checked>${P.showFavorites}</label>
+<label class="opt"><input type="checkbox" id="showMemo" checked>${P.showMemo}</label>
+<span class="note">${P.scheduleHint}</span>
 </div>
 ${missingBlock}
 <div id="vday">${nav ? `<div class="dnav">${nav}</div>` : ''}${days}</div>
@@ -577,27 +573,25 @@ ${missingBlock}
 </div>
 <div class="layout hidden" id="vlist">
 <aside>
-<input class="search" id="q" type="search" placeholder="キーワード検索（例: Bedrock）" aria-label="キーワード検索">
-<div style="display:flex;gap:8px;margin:10px 0"><label class="opt" style="flex:1"><input type="checkbox" id="memoOnly">☆メモ候補のみ</label><button class="btn" id="clear">クリア</button></div>
+<input class="search" id="q" type="search" placeholder="${P.searchPlaceholder}" aria-label="${P.searchAria}">
+<div style="display:flex;gap:8px;margin:10px 0"><label class="opt" style="flex:1"><input type="checkbox" id="memoOnly">${P.memoOnly}</label><button class="btn" id="clear">${P.clear}</button></div>
 <div id="filters"></div>
 </aside>
 <main>
 <div class="toolbar">
 <span class="count" id="count"></span>
-<label class="note">並び替え <select id="sort" class="btn"><option value="time">日時順</option><option value="rec">おすすめ順</option><option value="code">コード順</option><option value="level">レベル順</option></select></label>
-<button class="btn" id="expandAll">概要をすべて開く</button>
-<button class="btn pri" id="trBulk">表示中を日本語訳</button>
-<span class="note" id="trStatus"></span>
-</div>
+<label class="note">${P.sortLabel} <select id="sort" class="btn"><option value="time">${P.sortTime}</option><option value="rec">${P.sortRecommend}</option><option value="code">${P.sortCode}</option><option value="level">${P.sortLevel}</option></select></label>
+<button class="btn" id="expandAll">${P.expandAll}</button>
+${translateButton}</div>
 <details class="recipe" id="recipe"></details>
 <div class="chips" id="chips"></div>
 <div id="list"></div>
-<div class="more"><button class="btn hidden" id="moreBtn">さらに表示</button></div>
+<div class="more"><button class="btn hidden" id="moreBtn"></button></div>
 </main>
 </div>
-<div id="vov" class="view hidden"><p class="note" style="margin-top:0">各項目をクリックすると、その条件で一覧を絞り込みます。</p><div class="ov" id="ov"></div></div>
+<div id="vov" class="view hidden"><p class="note" style="margin-top:0">${P.overviewHint}</p><div class="ov" id="ov"></div></div>
 <div id="vmemo" class="view hidden">
-<div class="toolbar"><span class="count" id="memoCount"></span><button class="btn" id="csv">CSVエクスポート</button><span class="note">時間が重なる候補は赤く表示されます（会場間の移動時間は考慮していません）。このブラウザだけのメモで、公式の予定・予約には反映されません。★を押すとメモから外せます。</span></div>
+<div class="toolbar"><span class="count" id="memoCount"></span><button class="btn" id="csv">${P.csvExport}</button><span class="note">${P.memoHint}</span></div>
 <div id="memoPlan"></div>
 </div>
 <script type="application/json" id="ri-data">${embedded}</script>

@@ -183,3 +183,16 @@ describe('recommendSessions: おすすめにしない条件', () => {
     expect(rec([s('w', [SEC], { seatAvailability: 'walkUp' })]).has('w')).toBe(false);
   });
 });
+
+describe('recommendSessions: lang', () => {
+  it('en では理由を英語で返し、タグ類は原文のまま使う', () => {
+    const prof: Profile = { purpose: 'learning', mainTheme: ['セキュリティ'], themePriority: ['セキュリティ'] };
+    const { byId } = run([s('p', [SEC], { type: 'Workshop' })], { profile: prof, lang: 'en' });
+    expect(byId.get('p')?.reasons).toEqual(['Priority #1: Security & Identity', 'Format: Workshop', 'Seats open', 'Fits your schedule']);
+  });
+
+  it('省略時は日本語の理由を返す', () => {
+    const { byId } = run([s('p', [SEC])], { profile: { interestTopics: [SEC] } });
+    expect(byId.get('p')?.reasons).toContain('空席あり');
+  });
+});

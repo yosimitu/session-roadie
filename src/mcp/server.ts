@@ -191,8 +191,9 @@ export function createServer(): McpServer {
       ...eventIdParam,
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('「予定」タブをこの日（会場PST）だけにする。省略時は全日'),
       newSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('「新着」の比較元にするスナップショットの日付。省略時は今日より前で最新の日付（catalog_sync の availableDates で確認できる）'),
+      lang: z.enum(['ja', 'en']).optional().describe('画面の言語。省略時は ja。カタログ由来のタイトル・概要は翻訳しない'),
     },
-  }, async ({ date, eventId, newSince }) => safely(() => scheduleViewTool(date, eventId, newSince)));
+  }, async ({ date, eventId, newSince, lang }) => safely(() => scheduleViewTool(date, eventId, newSince, lang)));
 
   server.registerTool('conflicts_get', {
     description: '予約済みセッションの時間重複を検出し、再演・類似セッションの有無という事実に基づく根拠つきで諦める優先順位を提案する（sessionConflicts）。個人予定（基調講演など）と重なる予約も返す（personalTimeConflicts）',

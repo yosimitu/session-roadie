@@ -23,6 +23,7 @@ import { loadIntent } from '../profile/intentStore.js';
 import { signIn, signOut } from '../auth/signIn.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from '../runtimeContext.js';
 import { runScheduleView } from '../commands/scheduleView.js';
+import { parseLang } from '../reporting/i18n.js';
 import type { Session } from '../api/types.js';
 import { runWatchOnce } from '../commands/watch.js';
 import { formatWatchEvents } from '../commands/watchReport.js';
@@ -154,11 +155,11 @@ export async function scheduleApplyTool(reserve: string[] | undefined, favorite:
  * 現在のスケジュールとカタログ全件を、タブ付きの参照専用HTML（data/schedule.html）に書き出す。予定は変更しない。
  * 出力先は固定（LLMが任意のパスへ書き込めないようにする）。date は会場PSTの "YYYY-MM-DD"。
  */
-export async function scheduleViewTool(date?: string, eventId?: string, newSince?: string) {
+export async function scheduleViewTool(date?: string, eventId?: string, newSince?: string, lang?: string) {
   const id = resolveEventId(eventId);
   const snapshot = requireSnapshot(id);
   return runScheduleView(await createClient(), id, {
-    snapshot, outPath: SCHEDULE_HTML_PATH, profile: loadProfile(PROFILE_PATH), date, dataDir: DATA_DIR, newSince,
+    snapshot, outPath: SCHEDULE_HTML_PATH, profile: loadProfile(PROFILE_PATH), date, dataDir: DATA_DIR, newSince, lang: parseLang(lang),
   });
 }
 

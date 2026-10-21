@@ -11,31 +11,33 @@ export const CLIENT_SCRIPT = String.raw`
 (function () {
   'use strict';
   var raw = JSON.parse(document.getElementById('ri-data').textContent);
-  var DATA = raw.data, JA = raw.ja, META = raw.meta;
+  var DATA = raw.data, JA = raw.ja, META = raw.meta, L = raw.ui, ST = raw.st;
   var LS = 'roadie26_';
   function lsGet(k, d) { try { var v = localStorage.getItem(LS + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lsSet(k, v) { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) {} }
   function $(id) { return document.getElementById(id); }
-  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  function fmt(t) { var a = arguments; return t.replace(/\{(\d)\}/g, function (m, i) { return a[+i + 1]; }); }
   var ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
   function ja(v) { return JA[v] || v; }
-  function dayLabel(d) { if (!d) return '日時未定'; var x = new Date(d + 'T12:00:00'); return (x.getMonth() + 1) + '/' + x.getDate() + '(' + WD[x.getDay()] + ')'; }
-  function band(t) { if (!t) return '未定'; var h = +t.split(':')[0]; return h < 10 ? '〜10時' : h < 12 ? '10〜12時' : h < 14 ? '12〜14時' : h < 17 ? '14〜17時' : '17時〜'; }
+  function dayLabel(d) { if (!d) return L.dayTbd; var x = new Date(d + 'T12:00:00'); return fmt(L.dayFormat, x.getMonth() + 1, x.getDate(), L.weekdays[x.getDay()]); }
+  function band(t) { if (!t) return L.timeBands[5]; var h = +t.split(':')[0]; return h < 10 ? L.timeBands[0] : h < 12 ? L.timeBands[1] : h < 14 ? L.timeBands[2] : h < 17 ? L.timeBands[3] : L.timeBands[4]; }
   function hhmm(min) { return String(Math.floor(min / 60) % 24).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
 
   var DIMS = [
-    { k: 'ss', l: '状態', open: 1 }, { k: 'dt', l: '日付', open: 1 }, { k: 'ty', l: 'セッションタイプ', open: 1 },
-    { k: 'lv', l: 'レベル' }, { k: 'rl', l: '役職（ロール）' }, { k: 'tp', l: 'トピック' }, { k: 'ar', l: '関心分野' },
-    { k: 'in', l: '業種' }, { k: 'sv', l: 'AWSサービス', search: 1 }, { k: 'ft', l: '特徴（形式）' },
-    { k: 've', l: '会場' }, { k: 'tb', l: '開始時間帯' }
+    { k: 'ss', l: L.dims[0], open: 1 }, { k: 'dt', l: L.dims[1], open: 1 }, { k: 'ty', l: L.dims[2], open: 1 },
+    { k: 'lv', l: L.dims[3] }, { k: 'rl', l: L.dims[4] }, { k: 'tp', l: L.dims[5] }, { k: 'ar', l: L.dims[6] },
+    { k: 'in', l: L.dims[7] }, { k: 'sv', l: L.dims[8], search: 1 }, { k: 'ft', l: L.dims[9] },
+    { k: 've', l: L.dims[10] }, { k: 'tb', l: L.dims[11] }
   ];
   var ORDER = {
     lv: ['100 - Foundational', '200 - Intermediate', '300 - Advanced', '400 - Expert', '500 - Distinguished', 'No Level'],
-    tb: ['〜10時', '10〜12時', '12〜14時', '14〜17時', '17時〜', '未定'],
-    ss: ['予約済み', '公式お気に入り', '新着', 'おすすめ', '空席あり', '満席', '当日先着']
+    tb: L.timeBands,
+    ss: [ST.reserved, ST.favorite, ST.isNew, ST.recommend, ST.open, ST.full, ST.walkUp]
   };
-  var STATUS_CLASS = { '予約済み': 'rs', '公式お気に入り': 'fv', '新着': 'nw', 'おすすめ': 'rc', '空席あり': 'op', '満席': 'fl', '当日先着': 'wu' };
+  var STATUS_CLASS = {};
+  STATUS_CLASS[ST.reserved] = 'rs'; STATUS_CLASS[ST.favorite] = 'fv'; STATUS_CLASS[ST.isNew] = 'nw'; STATUS_CLASS[ST.recommend] = 'rc';
+  STATUS_CLASS[ST.open] = 'op'; STATUS_CLASS[ST.full] = 'fl'; STATUS_CLASS[ST.walkUp] = 'wu';
 
   var byId = {};
   DATA.forEach(function (s) {
@@ -45,7 +47,7 @@ export const CLIENT_SCRIPT = String.raw`
     s.q = (s.c + ' ' + s.t + ' ' + s.a + ' ' + s.sp.join(' ') + ' ' + s.sv.join(' ')).toLowerCase();
   });
   function vals(s, k) { var v = s[k]; if (Array.isArray(v)) return v; if (v === '' && k !== 've' && k !== 'dt') return []; return [v]; }
-  function label(k, v) { return k === 'dt' ? dayLabel(v) : k === 've' ? (v || '会場未定') : k === 'ss' ? v : ja(v); }
+  function label(k, v) { return k === 'dt' ? dayLabel(v) : k === 've' ? (v || L.venueTbd) : k === 'ss' ? v : ja(v); }
   function statusTags(s) { return s.ss.map(function (x) { return '<span class="tag st-' + (STATUS_CLASS[x] || 'op') + '">' + esc(x) + '</span>'; }).join(''); }
 
   var sel = {}; DIMS.forEach(function (d) { sel[d.k] = new Set(); });
@@ -88,12 +90,12 @@ export const CLIENT_SCRIPT = String.raw`
     var el = $('filters');
     el.innerHTML = DIMS.map(function (d) {
       var opts = OPTS[d.k].map(function (v) {
-        var L = label(d.k, v);
+        var text = label(d.k, v);
         var en = (d.k !== 'ss' && d.k !== 'dt' && d.k !== 've' && JA[v] && JA[v] !== v) ? '<span class="en">' + esc(v) + '</span>' : '';
-        return '<label class="opt" data-v="' + esc(v) + '"><input type="checkbox" value="' + esc(v) + '"><span>' + esc(L) + en + '</span><span class="n"></span></label>';
+        return '<label class="opt" data-v="' + esc(v) + '"><input type="checkbox" value="' + esc(v) + '"><span>' + esc(text) + en + '</span><span class="n"></span></label>';
       }).join('');
       return '<details class="f" data-k="' + d.k + '"' + (d.open ? ' open' : '') + '><summary><span>' + d.l + '<span class="badge hidden"></span></span></summary>'
-        + (d.search ? '<input class="mini" placeholder="サービス名で絞り込み" aria-label="サービス検索">' : '')
+        + (d.search ? '<input class="mini" placeholder="' + esc(L.servicePlaceholder) + '" aria-label="' + esc(L.serviceAria) + '">' : '')
         + '<div class="opts">' + opts + '</div></details>';
     }).join('');
     el.querySelectorAll('details').forEach(function (det) {
@@ -138,7 +140,7 @@ export const CLIENT_SCRIPT = String.raw`
       : sortBy === 'level'
         ? function (a, b) { return lvOrder(a.lv) - lvOrder(b.lv) || a.c.localeCompare(b.c); }
         : function (a, b) { return (a.dt || '9').localeCompare(b.dt || '9') || (a.tm || '99').localeCompare(b.tm || '99') || a.c.localeCompare(b.c); });
-    $('count').textContent = current.length.toLocaleString() + ' 件';
+    $('count').textContent = fmt(L.count, current.length.toLocaleString());
     updateCounts(); renderChips(); renderList();
     $('memon').textContent = memo.size ? '(' + memo.size + ')' : '';
   }
@@ -157,36 +159,37 @@ export const CLIENT_SCRIPT = String.raw`
 
   function card(s) {
     var tr = TR[s.id] || {};
-    var time = s.dt ? dayLabel(s.dt) + ' ' + esc(s.tm || '') + (s.ln ? '（' + Number(s.ln) + '分）' : '') : '日時未定';
+    var time = s.dt ? dayLabel(s.dt) + ' ' + esc(s.tm || '') + (s.ln ? esc(fmt(L.minutes, Number(s.ln))) : '') : esc(L.dayTbd);
     var title = tr.t ? '<span class="ja">' + esc(tr.t) + '</span><span class="orig">' + esc(s.t) + '</span>' : esc(s.t);
     var g = 'https://translate.google.com/?sl=en&tl=ja&op=translate&text=' + encodeURIComponent(s.t + '\n\n' + s.a.slice(0, 1800));
     var isMemo = memo.has(s.id);
     var extra = '';
-    if (s.ar.length) extra += '<p class="note">関心分野: ' + s.ar.map(ja).map(esc).join(' / ') + '</p>';
-    if (s.sv.length) extra += '<p class="note">サービス: ' + s.sv.map(esc).join(' / ') + '</p>';
-    if (s.in.length) extra += '<p class="note">業種: ' + s.in.map(ja).map(esc).join(' / ') + '</p>';
-    if (s.ft.length) extra += '<p class="note">特徴: ' + s.ft.map(ja).map(esc).join(' / ') + '</p>';
-    return '<article class="card' + (expandAll ? ' open' : '') + (s.ss.indexOf('予約済み') >= 0 ? ' is-reserved' : '') + '" data-id="' + esc(s.id) + '">'
+    if (s.ar.length) extra += '<p class="note">' + esc(L.labelAreas) + ': ' + s.ar.map(ja).map(esc).join(' / ') + '</p>';
+    if (s.sv.length) extra += '<p class="note">' + esc(L.labelServices) + ': ' + s.sv.map(esc).join(' / ') + '</p>';
+    if (s.in.length) extra += '<p class="note">' + esc(L.labelIndustries) + ': ' + s.in.map(ja).map(esc).join(' / ') + '</p>';
+    if (s.ft.length) extra += '<p class="note">' + esc(L.labelFeatures) + ': ' + s.ft.map(ja).map(esc).join(' / ') + '</p>';
+    return '<article class="card' + (expandAll ? ' open' : '') + (s.ss.indexOf(ST.reserved) >= 0 ? ' is-reserved' : '') + '" data-id="' + esc(s.id) + '">'
       + '<div class="row1"><span class="code">' + esc(s.c) + '</span><h2 class="title">' + title + '</h2>'
-      + '<button class="star' + (isMemo ? ' on' : '') + '" aria-label="メモ候補に追加" title="メモ候補（このブラウザだけに保存。公式の予定は変わりません）">' + (isMemo ? '★' : '☆') + '</button></div>'
-      + '<div class="meta"><span>🕒 ' + time + '</span><span>📍 ' + esc(s.ve || '会場未定') + (s.rm ? ' / ' + esc(s.rm) : '') + '</span>' + (s.sp.length ? '<span>🎤 ' + esc(s.sp.join(', ')) + '</span>' : '') + '</div>'
+      + '<button class="star' + (isMemo ? ' on' : '') + '" aria-label="' + esc(L.starAria) + '" title="' + esc(L.starTitle) + '">' + (isMemo ? '★' : '☆') + '</button></div>'
+      + '<div class="meta"><span>🕒 ' + time + '</span><span>📍 ' + esc(s.ve || L.venueTbd) + (s.rm ? ' / ' + esc(s.rm) : '') + '</span>' + (s.sp.length ? '<span>🎤 ' + esc(s.sp.join(', ')) + '</span>' : '') + '</div>'
       + '<div class="tags">' + statusTags(s) + '<span class="tag ty">' + esc(ja(s.ty)) + '</span>' + (s.lv ? '<span class="tag lv">' + esc(ja(s.lv)) + '</span>' : '')
       + s.tp.map(function (x) { return '<span class="tag">' + esc(ja(x)) + '</span>'; }).join('')
       + s.rl.map(function (x) { return '<span class="tag rl">' + esc(ja(x)) + '</span>'; }).join('') + '</div>'
-      + (s.rc ? '<div class="rec"><b>おすすめ度 ' + Number(s.rc) + '</b>（' + esc((s.rw || []).join(' / ')) + '）</div>' : '')
-      + '<div class="abs">' + (tr.a ? '<p class="lbl">概要（日本語訳）</p><p class="jaabs">' + esc(tr.a) + '</p>' : '')
-      + '<p class="lbl">Abstract（原文）</p><p>' + esc(s.a) + '</p>' + extra
-      + '<div class="acts">' + (tr.a ? '' : '<button class="btn trOne">このセッションを日本語訳</button>')
-      + '<a class="btn" href="' + esc(g) + '" target="_blank" rel="noopener" style="text-decoration:none">Google翻訳で開く ↗</a></div></div></article>';
+      + (s.rc ? '<div class="rec"><b>' + esc(fmt(L.recScore, Number(s.rc))) + '</b>' + esc(fmt(L.recWhy, (s.rw || []).join(' / '))) + '</div>' : '')
+      + '<div class="abs">' + (L.tr && tr.a ? '<p class="lbl">' + esc(L.tr.absLabel) + '</p><p class="jaabs">' + esc(tr.a) + '</p>' : '')
+      + '<p class="lbl">' + esc(L.abstractLabel) + '</p><p>' + esc(s.a) + '</p>' + extra
+      + (L.tr ? '<div class="acts">' + (tr.a ? '' : '<button class="btn trOne">' + esc(L.tr.one) + '</button>')
+        + '<a class="btn" href="' + esc(g) + '" target="_blank" rel="noopener" style="text-decoration:none">' + esc(L.tr.google) + '</a></div>' : '')
+      + '</div></article>';
   }
 
   function renderList() {
     $('list').innerHTML = current.length
       ? current.slice(0, shown).map(card).join('')
-      : '<div class="empty">条件に一致するセッションがありません。フィルターを緩めてください。</div>';
+      : '<div class="empty">' + esc(L.emptyList) + '</div>';
     var m = $('moreBtn');
     m.classList.toggle('hidden', current.length <= shown);
-    m.textContent = 'さらに表示（残り ' + Math.max(0, current.length - shown) + ' 件）';
+    m.textContent = fmt(L.moreButton, Math.max(0, current.length - shown));
   }
 
   $('list').addEventListener('click', function (e) {
@@ -213,17 +216,17 @@ export const CLIENT_SCRIPT = String.raw`
   });
 
   // 日本語訳: Chrome 内蔵の Translator API（ブラウザ内で完結）
-  var translator = null;
+  var T = L.tr, translator = null;
   function status(t) { $('trStatus').textContent = t; }
   function getTranslator() {
     if (translator) return Promise.resolve(translator);
-    if (!('Translator' in self)) { status('このブラウザでは内蔵翻訳が使えません。最新のChromeで開くか、「Google翻訳で開く」を使ってください。'); return Promise.resolve(null); }
+    if (!('Translator' in self)) { status(T.noApi); return Promise.resolve(null); }
     return Translator.availability({ sourceLanguage: 'en', targetLanguage: 'ja' }).then(function (av) {
-      if (av === 'unavailable') { status('英→日の内蔵翻訳が利用できません。'); return null; }
-      status('翻訳モデルを準備中…');
-      return Translator.create({ sourceLanguage: 'en', targetLanguage: 'ja', monitor: function (m) { m.addEventListener('downloadprogress', function (e) { status('翻訳モデルをダウンロード中 ' + Math.round(e.loaded * 100) + '%'); }); } })
+      if (av === 'unavailable') { status(T.unavailable); return null; }
+      status(T.preparing);
+      return Translator.create({ sourceLanguage: 'en', targetLanguage: 'ja', monitor: function (m) { m.addEventListener('downloadprogress', function (e) { status(fmt(T.downloading, Math.round(e.loaded * 100))); }); } })
         .then(function (t) { translator = t; return t; });
-    }).catch(function (err) { status('翻訳を開始できませんでした: ' + err.message); return null; });
+    }).catch(function (err) { status(fmt(T.failed, err.message)); return null; });
   }
   function translate(list, withAbs) {
     return getTranslator().then(function (tr) {
@@ -234,16 +237,16 @@ export const CLIENT_SCRIPT = String.raw`
         chain = chain.then(function () {
           var o = TR[s.id] || {};
           return Promise.resolve(o.t ? o.t : tr.translate(s.t)).then(function (t) { o.t = t; return withAbs && !o.a ? tr.translate(s.a) : o.a; })
-            .then(function (a) { if (a) o.a = a; TR[s.id] = o; n++; if (list.length > 1) status('翻訳中 ' + n + '/' + list.length); });
+            .then(function (a) { if (a) o.a = a; TR[s.id] = o; n++; if (list.length > 1) status(fmt(T.progress, n, list.length)); });
         });
       });
-      return chain.then(function () { lsSet('tr', TR); status(n + '件を日本語訳しました（このブラウザに保存済み）'); })
-        .catch(function (e) { lsSet('tr', TR); status('翻訳エラー: ' + e.message); });
+      return chain.then(function () { lsSet('tr', TR); status(fmt(T.done, n)); })
+        .catch(function (e) { lsSet('tr', TR); status(fmt(T.error, e.message)); });
     });
   }
-  $('trBulk').onclick = function () { translate(current.slice(0, shown), true).then(function () { renderList(); renderSchedMemo(); }); };
+  if (T) $('trBulk').onclick = function () { translate(current.slice(0, shown), true).then(function () { renderList(); renderSchedMemo(); }); };
   $('moreBtn').onclick = function () { shown += 60; renderList(); };
-  $('expandAll').onclick = function (e) { expandAll = !expandAll; e.target.textContent = expandAll ? '概要を閉じる' : '概要をすべて開く'; renderList(); };
+  $('expandAll').onclick = function (e) { expandAll = !expandAll; e.target.textContent = expandAll ? L.collapseAll : L.expandAll; renderList(); };
   var qt; $('q').addEventListener('input', function (e) { clearTimeout(qt); qt = setTimeout(function () { q = e.target.value.trim().toLowerCase(); shown = 60; update(); }, 200); });
   $('memoOnly').onchange = function (e) { memoOnly = e.target.checked; update(); };
   $('sort').onchange = function (e) { sortBy = e.target.value; update(); };
@@ -256,37 +259,36 @@ export const CLIENT_SCRIPT = String.raw`
   (function () {
     function n(label) { return DATA.filter(function (s) { return s.ss.indexOf(label) >= 0; }).length; }
     var days = OPTS.dt.filter(Boolean).length;
-    var st = [['セッション総数', DATA.length], ['予約済み', n('予約済み')], ['公式お気に入り', n('公式お気に入り')],
-      ['新着', n('新着')], ['開催日', days + '日'], ['会場', OPTS.ve.filter(Boolean).length]];
+    var st = [[L.stats[0], DATA.length], [L.stats[1], n(ST.reserved)], [L.stats[2], n(ST.favorite)],
+      [L.stats[3], n(ST.isNew)], [L.stats[4], fmt(L.daysCount, days)], [L.stats[5], OPTS.ve.filter(Boolean).length]];
     $('stats').innerHTML = st.map(function (x) {
       return '<div class="stat"><b>' + (typeof x[1] === 'number' ? x[1].toLocaleString() : esc(x[1])) + '</b><span>' + esc(x[0]) + '</span></div>';
     }).join('');
     $('newNote').textContent = META.newBaseline
-      ? '「新着」は ' + META.newBaseline + ' のスナップショットに無かったセッションです。'
-      : '新着の比較元になる過去のスナップショットがありません。';
+      ? fmt(L.newNote, META.newBaseline)
+      : L.newNoteNone;
   })();
 
   // おすすめの基準（トピックの重みの出どころと、点数の配分）
   function renderRecipe() {
     var el = $('recipe');
     var R = META.recipe || [];
-    var src = { priority: function (r) { return '優先' + Number(r.r) + '位'; }, favorites: function () { return 'お気に入りの傾向'; }, interest: function () { return '関心テーマ'; } };
-    el.innerHTML = '<summary>おすすめの基準（クリックで開く）</summary>'
+    var src = { priority: function (r) { return fmt(L.recipePriority, Number(r.r)); }, favorites: function () { return L.recipeFavorites; }, interest: function () { return L.recipeInterest; } };
+    el.innerHTML = '<summary>' + esc(L.recipeSummary) + '</summary>'
       + (R.length
         ? '<ul>' + R.map(function (r) {
           var how = src[r.s] ? src[r.s](r) : '';
-          return '<li>' + esc(ja(r.t)) + ' … 重み ' + Number(r.w).toFixed(2) + ' <span class="src">（' + esc(how) + '）</span></li>';
+          return '<li>' + esc(ja(r.t)) + ' … ' + esc(fmt(L.recipeWeight, Number(r.w).toFixed(2))) + ' <span class="src">(' + esc(how) + ')</span></li>';
         }).join('') + '</ul>'
-        : '<p class="note">お気に入りも、プロフィールの関心テーマも無いため、おすすめを計算できません。</p>')
-      + '<p class="note">点数: トピックの重み×40 ＋ 優先形式 10 ＋ 空席 10（残りわずかは5）＋ 予定に収まる 15 ＋ 新着 5（80点満点を100点に換算）。'
-      + 'おすすめ度 ' + Number(META.threshold || 60) + ' 以上に「おすすめ」の印を付けます。</p>'
-      + '<p class="note">除外: 予約済み・満席・当日先着、予約や個人予定と重なる（移動時間・最低空き時間を含む）、1日の上限、参加日の外、希望レベル超え、スポンサー除外、開始時刻より前。</p>'
-      + '<p class="note">お気に入りの傾向を基本に、プロフィールで優先順位を決めていれば、それで上書きします。</p>';
+        : '<p class="note">' + esc(L.recipeNone) + '</p>')
+      + '<p class="note">' + esc(fmt(L.recipePoints, Number(META.threshold || 60))) + '</p>'
+      + '<p class="note">' + esc(L.recipeExcluded) + '</p>'
+      + '<p class="note">' + esc(L.recipeBasis) + '</p>';
   }
 
   // 全体像
   function renderOv() {
-    var P = [['dt', '日付別'], ['ty', 'セッションタイプ別'], ['rl', '役職別'], ['tp', 'トピック別'], ['lv', 'レベル別'], ['ve', '会場別'], ['ar', '関心分野（上位15）'], ['sv', 'AWSサービス（上位15）']];
+    var P = [['dt', L.overview[0]], ['ty', L.overview[1]], ['rl', L.overview[2]], ['tp', L.overview[3]], ['lv', L.overview[4]], ['ve', L.overview[5]], ['ar', L.overview[6]], ['sv', L.overview[7]]];
     $('ov').innerHTML = P.map(function (p) {
       var k = p[0], c = {};
       DATA.forEach(function (s) { vals(s, k).forEach(function (v) { c[v] = (c[v] || 0) + 1; }); });
@@ -305,35 +307,34 @@ export const CLIENT_SCRIPT = String.raw`
 
   // メモ候補（このブラウザだけ。公式の予定は変わらない）
   function renderMemo() {
-    var L = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean)
+    var list = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean)
       .sort(function (a, b) { return (a.dt || '9').localeCompare(b.dt || '9') || (a.tm || '').localeCompare(b.tm || ''); });
-    $('memoCount').textContent = 'メモ候補 ' + L.length + ' 件';
-    if (!L.length) { $('memoPlan').innerHTML = '<div class="empty">一覧で ☆ を押すと、ここに日別で表示されます。</div>'; return; }
+    $('memoCount').textContent = fmt(L.memoCount, list.length);
+    if (!list.length) { $('memoPlan').innerHTML = '<div class="empty">' + esc(L.memoEmpty) + '</div>'; return; }
     var cf = new Set();
-    for (var i = 0; i < L.length; i++) for (var j = i + 1; j < L.length; j++) {
-      var a = L[i], b = L[j];
+    for (var i = 0; i < list.length; i++) for (var j = i + 1; j < list.length; j++) {
+      var a = list[i], b = list[j];
       if (a.dt && a.dt === b.dt && a.st != null && b.st != null && a.st < b.st + b.ln && b.st < a.st + a.ln) { cf.add(a.id); cf.add(b.id); }
     }
     var g = {};
-    L.forEach(function (s) { (g[s.dt] = g[s.dt] || []).push(s); });
+    list.forEach(function (s) { (g[s.dt] = g[s.dt] || []).push(s); });
     $('memoPlan').innerHTML = Object.keys(g).map(function (d) {
-      return '<section class="mday"><h3>' + dayLabel(d) + '（' + g[d].length + '件）</h3>' + g[d].map(function (s) {
+      return '<section class="mday"><h3>' + dayLabel(d) + esc(fmt(L.memoDayCount, g[d].length)) + '</h3>' + g[d].map(function (s) {
         var end = s.st != null ? hhmm(s.st + s.ln) : '';
         var tr = TR[s.id];
-        return '<div class="slot' + (cf.has(s.id) ? ' cf' : '') + '"><div><b>' + esc(s.tm || '未定') + '</b>' + (end ? '〜' + end : '') + (cf.has(s.id) ? '<div class="warn">⚠ 時間重複</div>' : '') + '</div>'
-          + '<div><button class="mstar" data-id="' + esc(s.id) + '" title="メモから外す" aria-label="メモから外す">★</button>'
+        return '<div class="slot' + (cf.has(s.id) ? ' cf' : '') + '"><div><b>' + esc(s.tm || L.memoTbd) + '</b>' + (end ? '〜' + end : '') + (cf.has(s.id) ? '<div class="warn">' + esc(L.memoConflict) + '</div>' : '') + '</div>'
+          + '<div><button class="mstar" data-id="' + esc(s.id) + '" title="' + esc(L.memoRemove) + '" aria-label="' + esc(L.memoRemove) + '">★</button>'
           + '<span class="code">' + esc(s.c) + '</span> ' + esc(tr && tr.t ? tr.t : s.t) + ' ' + statusTags(s)
-          + '<div class="note">' + esc(ja(s.ty)) + ' ・ ' + esc(s.ve || '') + ' ' + esc(s.rm || '') + ' <button class="linkbtn" data-jump="' + esc(s.id) + '">一覧で詳細を見る →</button></div></div></div>';
+          + '<div class="note">' + esc(ja(s.ty)) + esc(L.dot) + esc(s.ve || '') + ' ' + esc(s.rm || '') + ' <button class="linkbtn" data-jump="' + esc(s.id) + '">' + esc(L.memoJump) + '</button></div></div></div>';
       }).join('') + '</section>';
     }).join('');
   }
   $('csv').onclick = function () {
-    var L = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean);
-    var h = ['コード', 'タイトル', 'タイトル（日本語）', '日付', '開始', '分', '会場', '部屋', 'タイプ', 'レベル', '役職', '登壇者'];
+    var list = Array.from(memo).map(function (id) { return byId[id]; }).filter(Boolean);
     function qq(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
-    var rows = L.map(function (s) { return [s.c, s.t, (TR[s.id] || {}).t || '', s.dt, s.tm, s.ln, s.ve, s.rm, ja(s.ty), ja(s.lv), s.rl.map(ja).join(' / '), s.sp.join(', ')].map(qq).join(','); });
-    var blob = new Blob([String.fromCharCode(65279) + [h.map(qq).join(',')].concat(rows).join('\n')], { type: 'text/csv' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'reinvent2026_メモ候補.csv'; a.click();
+    var rows = list.map(function (s) { return [s.c, s.t, (TR[s.id] || {}).t || '', s.dt, s.tm, s.ln, s.ve, s.rm, ja(s.ty), ja(s.lv), s.rl.map(ja).join(' / '), s.sp.join(', ')].map(qq).join(','); });
+    var blob = new Blob([String.fromCharCode(65279) + [L.csvHeader.map(qq).join(',')].concat(rows).join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = L.csvFilename; a.click();
   };
 
   // ★メモを「予定」のタイムライン（日別・通しの両方）に重ねる。公式の予定・予約は変えない
@@ -344,14 +345,14 @@ export const CLIENT_SCRIPT = String.raw`
   function memoTags(s) {
     var tags = [];
     var end = s.st + (s.ln || 30);
-    if (s.ss.indexOf('予約済み') >= 0) {
-      tags.push(['info', '予約済み']);
+    if (s.ss.indexOf(ST.reserved) >= 0) {
+      tags.push(['info', L.tagReserved]);
     } else {
-      var clash = DATA.filter(function (o) { return o.id !== s.id && o.dt === s.dt && o.st != null && o.ss.indexOf('予約済み') >= 0 && overlap(s.st, end, o.st, o.st + (o.ln || 30)); });
-      if (clash.length) tags.push(['warn', '⚠ 予約と重複（' + clash.map(function (o) { return o.c; }).join(', ') + '）']);
+      var clash = DATA.filter(function (o) { return o.id !== s.id && o.dt === s.dt && o.st != null && o.ss.indexOf(ST.reserved) >= 0 && overlap(s.st, end, o.st, o.st + (o.ln || 30)); });
+      if (clash.length) tags.push(['warn', fmt(L.tagClashReserved, clash.map(function (o) { return o.c; }).join(', '))]);
     }
     (META.personal || []).forEach(function (p) {
-      if (p.date === s.dt && overlap(s.st, end, p.start, p.end)) tags.push(['warn', '⚠ 個人予定と重複（' + p.title + '）']);
+      if (p.date === s.dt && overlap(s.st, end, p.start, p.end)) tags.push(['warn', fmt(L.tagClashPersonal, p.title)]);
     });
     return tags;
   }
@@ -396,10 +397,10 @@ export const CLIENT_SCRIPT = String.raw`
         var tagList = memoTags(s);
         var tags = compact
           ? '<span class="t-tag memo-tag">★</span>' + tagList.map(function (x) { return '<span class="t-tag ' + x[0] + '" title="' + esc(x[1]) + '">' + (x[0] === 'warn' ? '⚠' : esc(x[1])) + '</span>'; }).join('')
-          : '<span class="t-tag memo-tag">★ メモ</span>' + tagList.map(function (x) { return '<span class="t-tag ' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('');
+          : '<span class="t-tag memo-tag">' + esc(L.tagMemo) + '</span>' + tagList.map(function (x) { return '<span class="t-tag ' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('');
         var tip = s.c + ' ' + s.t + (tagList.length ? '\n' + tagList.map(function (x) { return x[1]; }).join('\n') : '');
         return '<div class="t-card memo' + (compact ? ' compact' : '') + '" data-id="' + esc(s.id) + '" title="' + esc(tip) + '" style="top:' + top.toFixed(1) + 'px;height:' + height.toFixed(1) + 'px;left:' + (p.lane * w).toFixed(2) + '%;width:' + w.toFixed(2) + '%">'
-          + '<button class="mstar" data-id="' + esc(s.id) + '" title="メモから外す" aria-label="メモから外す">★</button>'
+          + '<button class="mstar" data-id="' + esc(s.id) + '" title="' + esc(L.memoRemove) + '" aria-label="' + esc(L.memoRemove) + '">★</button>'
           + '<div class="t-time">' + hhmm(s.st) + '–' + hhmm(s.st + (s.ln || 30)) + '</div>'
           + '<div class="t-tags">' + tags + '</div>'
           + '<div class="t-ttl"><span class="t-abbr">' + esc(s.c) + '</span> ' + esc(tr && tr.t ? tr.t : s.t) + '</div>'
