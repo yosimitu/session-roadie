@@ -269,6 +269,7 @@ export interface PageStrings {
   tabList: string;
   tabOverview: string;
   tabMemo: string;
+  tabDigest: string;
   scheduleSummary: (reserved: number, favorites: number, warnings: number) => string;
   segDay: string;
   segWeek: (days: number) => string;
@@ -315,6 +316,7 @@ const PAGE_JA: PageStrings = {
   tabList: 'セッション一覧',
   tabOverview: '全体像',
   tabMemo: 'メモ候補',
+  tabDigest: '更新履歴',
   scheduleSummary: (r, f, w) => `予約 ${r}件 / お気に入り ${f}件（未予約） / <span class="warn-text">警告 ${w}件</span>`,
   segDay: '日別',
   segWeek: (days) => `${days}日間通し`,
@@ -361,6 +363,7 @@ const PAGE_EN: PageStrings = {
   tabList: 'Session list',
   tabOverview: 'Overview',
   tabMemo: 'Note candidates',
+  tabDigest: 'Update history',
   scheduleSummary: (r, f, w) => `Reserved ${r} / Favorites ${f} (not reserved) / <span class="warn-text">Warnings ${w}</span>`,
   segDay: 'By day',
   segWeek: (days) => `All ${days} days`,

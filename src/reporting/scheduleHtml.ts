@@ -10,6 +10,7 @@ import { TRAVEL_BLOCK_DESCRIPTION_MARKER } from '../schedule/travelBlock.js';
 import { buildCatalogRecords, serializeForScript } from './catalogRecords.js';
 import { CLIENT_SCRIPT } from './catalogClient.js';
 import { JA_LABELS } from './jaLabels.js';
+import { DIGEST_CSS, renderDigestBody, type DigestPeriod } from './digestHtml.js';
 import { CLIENT, PAGE, STATUS, type Lang, type PageStrings } from './i18n.js';
 
 // 現在のスケジュール（予約・お気に入り・個人予定）を日別のタイムラインにし、カタログ全件の一覧・全体像・
@@ -33,7 +34,10 @@ export interface ScheduleHtmlInput {
   newSessionIds?: string[]; // 「新着」として印を付けるセッション（比較元のスナップショットに無かったもの）
   newBaseline?: string; // 新着の比較元スナップショットの日付（表示用）
   lang?: Lang; // 画面の言語。省略時は日本語（カタログ由来のタイトル・概要は翻訳しない）
+  digestPeriods?: DigestPeriod[]; // 「更新履歴」タブ。日別スナップショットの隣り合う日どうしの差分（新しい期間が先）。省略時はタブを出さない
 }
+
+const DIGEST_TAB_MAX_PERIODS = 14; // ファイルを重くしないため、タブに載せるのは直近の期間だけ
 
 type Kind = 'reserved' | 'favorite' | 'personal' | 'derived';
 
@@ -543,10 +547,11 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
     data: records, ja: lang === 'ja' ? JA_LABELS : {}, ui: CLIENT[lang], st: STATUS[lang], lang, meta: { newBaseline: input.newBaseline ?? '', personal, px: PX_PER_MINUTE, recipe, threshold: RECOMMEND_THRESHOLD },
   });
 
-  const translateButton = P.translateAll ? `<button class="btn pri" id="trBulk">${P.translateAll}</button>\n<span class="note" id="trStatus"></span>\n` : '';
+  const digestTab = input.digestPeriods !== undefined;
+  const translateButton =P.translateAll ? `<button class="btn pri" id="trBulk">${P.translateAll}</button>\n<span class="note" id="trStatus"></span>\n` : '';
   return `<!doctype html>
 <html lang="${P.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${P.title}</title><style>${STYLE}</style></head><body>
+<title>${P.title}</title><style>${STYLE}${digestTab ? DIGEST_CSS : ''}</style></head><body>
 <header><h1>${P.heading}</h1>
 <p class="sub">${P.subtitle}</p>
 <div class="stats" id="stats"></div>
@@ -558,7 +563,7 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
 <button class="tab" data-v="list" role="tab">${P.tabList}</button>
 <button class="tab" data-v="ov" role="tab">${P.tabOverview}</button>
 <button class="tab" data-v="memo" role="tab">${P.tabMemo} <span id="memon"></span></button>
-</nav>
+${digestTab ? `<button class="tab" data-v="digest" role="tab">${P.tabDigest}</button>\n` : ''}</nav>
 <div id="vsched" class="view">
 <div class="note">${P.scheduleSummary(reservedTotal, favoriteTotal, warnTotal)}</div>
 <div class="toolbar sched-bar">
@@ -594,7 +599,7 @@ ${translateButton}</div>
 <div class="toolbar"><span class="count" id="memoCount"></span><button class="btn" id="csv">${P.csvExport}</button><span class="note">${P.memoHint}</span></div>
 <div id="memoPlan"></div>
 </div>
-<script type="application/json" id="ri-data">${embedded}</script>
+${digestTab ? `<div id="vdigest" class="view hidden">${renderDigestBody(input.digestPeriods ?? [], lang, DIGEST_TAB_MAX_PERIODS)}</div>\n` : ''}<script type="application/json" id="ri-data">${embedded}</script>
 <script>${CLIENT_SCRIPT}</script>
 </body></html>
 `;

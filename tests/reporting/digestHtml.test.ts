@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildDigest, renderDigestHtml } from '../../src/reporting/digestHtml.js';
+import { buildDigest, generateDigestFile, renderDigestHtml } from '../../src/reporting/digestHtml.js';
 import { saveSnapshot } from '../../src/catalog/store.js';
 import type { Session } from '../../src/api/types.js';
 
@@ -44,6 +44,14 @@ describe('buildDigest / renderDigestHtml', () => {
     expect(html).toContain('3日分をまとめた差分');
     expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
     expect(html).not.toContain('<script>x');
+  });
+
+  it('generateDigestFile は HTML を書き出し、期間の数を返す', () => {
+    saveSnapshot('e', [s('1')], dir, '2026-10-01');
+    saveSnapshot('e', [s('1'), s('2')], dir, '2026-10-02');
+    const out = join(dir, 'out', 'digest.html');
+    expect(generateDigestFile('e', dir, out)).toBe(1);
+    expect(readFileSync(out, 'utf8')).toContain('新規 1');
   });
 
   it('比べられる日が足りないときは、その旨を出す', () => {

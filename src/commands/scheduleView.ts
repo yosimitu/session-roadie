@@ -4,6 +4,7 @@ import type { ApiClient } from '../api/client.js';
 import type { Session } from '../api/types.js';
 import type { Profile } from '../profile/profileStore.js';
 import { buildScheduleHtml } from '../reporting/scheduleHtml.js';
+import { buildDigest } from '../reporting/digestHtml.js';
 import type { Lang } from '../reporting/i18n.js';
 import { listSnapshotDates, loadSnapshotByDate } from '../catalog/store.js';
 import { runScheduleStatus } from './scheduleStatus.js';
@@ -59,6 +60,7 @@ export async function runScheduleView(client: ApiClient, eventId: string, option
     newSessionIds: news.ids,
     newBaseline: news.baseline,
     lang: options.lang,
+    digestPeriods: options.dataDir ? buildDigest(eventId, options.dataDir) : undefined,
   });
   mkdirSync(dirname(options.outPath), { recursive: true });
   writeFileSync(options.outPath, html, 'utf-8');

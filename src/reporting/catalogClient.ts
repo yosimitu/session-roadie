@@ -451,6 +451,7 @@ export const CLIENT_SCRIPT = String.raw`
   });
 
   var VIEWS = { sched: 'vsched', list: 'vlist', ov: 'vov', memo: 'vmemo' };
+  if ($('vdigest')) VIEWS.digest = 'vdigest';
   function show(v) {
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.v === v); });
     Object.keys(VIEWS).forEach(function (k) { $(VIEWS[k]).classList.toggle('hidden', k !== v); });

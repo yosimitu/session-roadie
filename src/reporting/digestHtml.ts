@@ -13,6 +13,31 @@ export interface DigestPeriod {
 
 const DAY_MS = 86_400_000;
 
+type DigestLang = 'ja' | 'en';
+
+const L = {
+  ja: {
+    added: '新規', removed: '削除', changed: '変更（会場・部屋・日時）', changedShort: '変更', unit: '件', none: '変化なし',
+    noType: '（形式なし）', noValue: '（なし）', period: '期間',
+    merged: (n: number) => `${n}日分をまとめた差分（間のスナップショットなし）`,
+    empty: '比べられる日別スナップショットが2日分ありません。<code>re-roadie sync</code> か <code>watch</code> を日をあけて実行すると記録されます。',
+    field: { venue: '会場', room: '部屋', sessionTime: '日時' } as Record<string, string>,
+    caption: '件数はカタログの掲載数で、AWS の注力や参加者数を表すとは限りません。変更は会場・部屋・日時のみ。',
+    truncated: (shown: number, all: number) => `直近${shown}期間のみ表示（全${all}期間は re-roadie digest で見られます）`,
+    heading: 'カタログの更新履歴',
+  },
+  en: {
+    added: 'New', removed: 'Removed', changed: 'Changed (venue, room, time)', changedShort: 'Changed', unit: '', none: 'No changes',
+    noType: '(no type)', noValue: '(none)', period: 'Period',
+    merged: (n: number) => `Combined diff over ${n} days (no snapshot in between)`,
+    empty: 'Fewer than two daily snapshots are saved. Run <code>re-roadie sync</code> or <code>watch</code> on different days to record them.',
+    field: { venue: 'Venue', room: 'Room', sessionTime: 'Time' } as Record<string, string>,
+    caption: 'Counts are catalog listings and do not necessarily show AWS priorities or attendance. Changes cover venue, room, and time only.',
+    truncated: (shown: number, all: number) => `Showing the latest ${shown} periods only (all ${all} are in re-roadie digest)`,
+    heading: 'Catalog update history',
+  },
+} as const;
+
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 }
@@ -50,76 +75,94 @@ function sessionLine(s: Session): string {
   return `<li><b>${esc(s.abbreviation ?? s.sessionId)}</b> ${esc(s.title)}${meta ? ` <span class="meta">${esc(meta)}</span>` : ''}</li>`;
 }
 
-const FIELD_LABEL: Record<string, string> = { venue: '会場', room: '部屋', sessionTime: '日時' };
-
-function fieldValue(s: Session, field: string): string {
-  if (field === 'sessionTime') return when(s) || '（なし）';
-  return String((s as unknown as Record<string, unknown>)[field] ?? '（なし）');
+function fieldValue(s: Session, field: string, t: (typeof L)[DigestLang]): string {
+  if (field === 'sessionTime') return when(s) || t.noValue;
+  return String((s as unknown as Record<string, unknown>)[field] ?? t.noValue);
 }
 
-function changedLine(c: ChangedSession): string {
-  const parts = c.changedFields.map((f) => `${FIELD_LABEL[f] ?? f}: ${esc(fieldValue(c.before, f))} → ${esc(fieldValue(c.after, f))}`);
+function changedLine(c: ChangedSession, t: (typeof L)[DigestLang]): string {
+  const parts = c.changedFields.map((f) => `${t.field[f] ?? f}: ${esc(fieldValue(c.before, f, t))} → ${esc(fieldValue(c.after, f, t))}`);
   return `<li><b>${esc(c.after.abbreviation ?? c.sessionId)}</b> ${esc(c.after.title)} <span class="meta">${parts.join(' / ')}</span></li>`;
 }
 
-function groupByType(sessions: Session[]): [string, Session[]][] {
+function groupByType(sessions: Session[], noType: string): [string, Session[]][] {
   const groups = new Map<string, Session[]>();
   for (const s of sessions) {
-    const key = s.type ?? '（形式なし）';
+    const key = s.type ?? noType;
     groups.set(key, [...(groups.get(key) ?? []), s]);
   }
   return [...groups].sort((a, b) => b[1].length - a[1].length);
 }
 
-function section(title: string, count: number, body: string, open = false): string {
+function section(title: string, count: number, body: string, unit: string, open = false): string {
   if (count === 0) return '';
-  return `<details${open ? ' open' : ''}><summary>${esc(title)} <span class="count">${count}件</span></summary>${body}</details>`;
+  return `<details${open ? ' open' : ''}><summary>${esc(title)} <span class="count">${count}${unit}</span></summary>${body}</details>`;
 }
 
-function renderPeriod(p: DigestPeriod, first: boolean): string {
+function renderPeriod(p: DigestPeriod, first: boolean, t: (typeof L)[DigestLang]): string {
   const { added, removed, changed } = p.diff;
   const span = daysBetween(p.from, p.to);
-  const note = span > 1 ? `<span class="note">${span}日分をまとめた差分（間のスナップショットなし）</span>` : '';
+  const note = span > 1 ? `<span class="note">${esc(t.merged(span))}</span>` : '';
   const empty = added.length + removed.length + changed.length === 0;
-  const counts = `<span class="chip add">新規 ${added.length}</span><span class="chip rem">削除 ${removed.length}</span><span class="chip chg">変更 ${changed.length}</span>`;
+  const counts = `<span class="chip add">${t.added} ${added.length}</span><span class="chip rem">${t.removed} ${removed.length}</span><span class="chip chg">${t.changedShort} ${changed.length}</span>`;
   const body = empty
-    ? '<p class="none">変化なし</p>'
-    : section('新規', added.length, groupByType(added).map(([type, list]) =>
-        `<h4>${esc(type)}（${list.length}）</h4><ul>${list.map(sessionLine).join('')}</ul>`).join(''), first)
-      + section('削除', removed.length, `<ul>${removed.map(sessionLine).join('')}</ul>`)
-      + section('変更（会場・部屋・日時）', changed.length, `<ul>${changed.map(changedLine).join('')}</ul>`);
+    ? `<p class="none">${t.none}</p>`
+    : section(t.added, added.length, groupByType(added, t.noType).map(([type, list]) =>
+        `<h4>${esc(type)} (${list.length})</h4><ul>${list.map(sessionLine).join('')}</ul>`).join(''), t.unit, first)
+      + section(t.removed, removed.length, `<ul>${removed.map(sessionLine).join('')}</ul>`, t.unit)
+      + section(t.changed, changed.length, `<ul>${changed.map((c) => changedLine(c, t)).join('')}</ul>`, t.unit);
   return `<section id="d-${esc(p.to)}"><h2>${esc(p.from)} → ${esc(p.to)} ${note}</h2><div class="chips">${counts}</div>${body}</section>`;
 }
 
-const STYLE = `
-:root{--bg:#fff;--fg:#1f2328;--sub:#59636e;--line:#d1d9e0;--card:#f6f8fa;--add:#1a7f37;--rem:#cf222e;--chg:#9a6700}
-@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--sub:#9198a1;--line:#3d444d;--card:#151b23;--add:#3fb950;--rem:#f85149;--chg:#d29922}}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif}
-main{max-width:860px;margin:0 auto;padding:24px 16px 64px}
-h1{font-size:22px;margin:0 0 4px}.sub{color:var(--sub);margin:0 0 20px;font-size:13px}
-table{border-collapse:collapse;width:100%;margin-bottom:28px;font-size:14px}
-th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}td.n{text-align:right}
-section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:16px}
-h2{font-size:17px;margin:0 0 6px}h4{margin:12px 0 4px;font-size:13px;color:var(--sub)}
-.note{font-size:12px;font-weight:normal;color:var(--sub);margin-left:8px}
-.chip{display:inline-block;margin-right:8px;font-size:13px;font-weight:600}
-.add{color:var(--add)}.rem{color:var(--rem)}.chg{color:var(--chg)}
-details{margin-top:8px}summary{cursor:pointer;font-weight:600}.count{color:var(--sub);font-weight:normal}
-ul{margin:6px 0 0;padding-left:20px}li{margin:3px 0}.meta{color:var(--sub);font-size:13px}.none{color:var(--sub);margin:8px 0 0}
-a{color:inherit}
+/** 更新履歴の部品のCSS。色は scheduleHtml の変数名（--tx --tx2 --bd --sf --gr --rd --or）を使い、.dg の中だけに効く */
+export const DIGEST_CSS = `
+.dg table{border-collapse:collapse;width:100%;margin-bottom:24px;font-size:14px}
+.dg th,.dg td{border-bottom:1px solid var(--bd);padding:6px 8px;text-align:left}.dg td.n{text-align:right}
+.dg section{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-bottom:16px}
+.dg h2{font-size:17px;margin:0 0 6px}.dg h4{margin:12px 0 4px;font-size:13px;color:var(--tx2)}
+.dg .note{font-size:12px;font-weight:normal;color:var(--tx2);margin-left:8px}
+.dg .chip{display:inline-block;margin-right:8px;font-size:13px;font-weight:600}
+.dg .add{color:var(--gr)}.dg .rem{color:var(--rd)}.dg .chg{color:var(--or)}
+.dg details{margin-top:8px}.dg summary{cursor:pointer;font-weight:600}.dg .count{color:var(--tx2);font-weight:normal}
+.dg ul{margin:6px 0 0;padding-left:20px}.dg li{margin:3px 0}.dg .meta{color:var(--tx2);font-size:13px}.dg .none,.dg .cap{color:var(--tx2);margin:8px 0 12px;font-size:13px}
+.dg a{color:inherit}
 `;
 
-export function renderDigestHtml(eventId: string, periods: DigestPeriod[], generatedAt: Date): string {
-  const rows = periods.map((p) =>
+/** 単体ページ用の色（scheduleHtml と同じ変数名） */
+const PAGE_CSS = `
+:root{--tx:#1f2328;--tx2:#59636e;--bg:#fff;--sf:#f6f8fa;--bd:#d1d9e0;--gr:#1a7f37;--rd:#cf222e;--or:#9a6700}
+@media (prefers-color-scheme:dark){:root{--tx:#e6edf3;--tx2:#9198a1;--bg:#0d1117;--sf:#151b23;--bd:#3d444d;--gr:#3fb950;--rd:#f85149;--or:#d29922}}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--tx2);margin:0 0 20px;font-size:13px}
+`;
+
+/** 更新履歴の本体（表と期間ごとの内訳）。view のタブにも単体ページにも使う。max を超える古い期間は省く */
+export function renderDigestBody(periods: DigestPeriod[], lang: DigestLang = 'ja', max?: number): string {
+  const t = L[lang];
+  if (periods.length === 0) return `<div class="dg"><p class="none">${t.empty}</p></div>`;
+  const shown = max === undefined ? periods : periods.slice(0, max);
+  const rows = shown.map((p) =>
     `<tr><td><a href="#d-${esc(p.to)}">${esc(p.from)} → ${esc(p.to)}</a></td><td class="n add">${p.diff.added.length}</td><td class="n rem">${p.diff.removed.length}</td><td class="n chg">${p.diff.changed.length}</td></tr>`).join('');
+  const cut = shown.length < periods.length ? `<p class="cap">${esc(t.truncated(shown.length, periods.length))}</p>` : '';
+  return `<div class="dg"><p class="cap">${esc(t.caption)}</p>${cut}<table><thead><tr><th>${t.period}</th><th>${t.added}</th><th>${t.removed}</th><th>${t.changedShort}</th></tr></thead><tbody>${rows}</tbody></table>${shown.map((p, i) => renderPeriod(p, i === 0, t)).join('')}</div>`;
+}
+
+export function renderDigestHtml(eventId: string, periods: DigestPeriod[], generatedAt: Date): string {
+  const t = L.ja;
   const total = periods.reduce((n, p) => n + p.diff.added.length, 0);
-  const body = periods.length === 0
-    ? '<p class="none">比べられる日別スナップショットが2日分ありません。<code>re-roadie sync</code> か <code>watch</code> を日をあけて実行すると記録されます。</p>'
-    : `<table><thead><tr><th>期間</th><th>新規</th><th>削除</th><th>変更</th></tr></thead><tbody>${rows}</tbody></table>${periods.map((p, i) => renderPeriod(p, i === 0)).join('')}`;
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>カタログの更新履歴 ${esc(eventId)}</title><style>${STYLE}</style></head><body><main><h1>カタログの更新履歴</h1><p class="sub">${esc(eventId)} ・ 生成 ${esc(generatedAt.toISOString().slice(0, 16).replace('T', ' '))} UTC ・ ${periods.length}期間 ・ 新規の合計 ${total}件。件数はカタログの掲載数で、AWS の注力や参加者数を表すとは限りません。変更は会場・部屋・日時のみ。</p>${body}</main></body></html>`;
+  const created = generatedAt.toISOString().slice(0, 16).replace('T', ' ');
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.heading} ${esc(eventId)}</title><style>${PAGE_CSS}${DIGEST_CSS}</style></head><body><main><h1>${t.heading}</h1><p class="sub">${esc(eventId)} ・ 生成 ${esc(created)} UTC ・ ${periods.length}期間 ・ 新規の合計 ${total}件</p>${renderDigestBody(periods)}</main></body></html>`;
 }
 
 export function writeDigestHtml(path: string, html: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, html);
+}
+
+/** 保存済みのスナップショットから更新履歴のHTMLを作って書き出し、期間の数を返す */
+export function generateDigestFile(eventId: string, dataDir: string, outPath: string, since?: string, now: Date = new Date()): number {
+  const periods = buildDigest(eventId, dataDir, since);
+  writeDigestHtml(outPath, renderDigestHtml(eventId, periods, now));
+  return periods.length;
 }

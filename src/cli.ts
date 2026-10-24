@@ -28,9 +28,9 @@ import { recommendForConflict } from './planning/alternatives.js';
 import { hasPlanChanges, saveScheduleBackup } from './schedule/backup.js';
 import { runTrends, formatTrends } from './commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
-import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, DIGEST_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
-import { buildDigest, renderDigestHtml, writeDigestHtml } from './reporting/digestHtml.js';
+import { generateDigestFile } from './reporting/digestHtml.js';
 import { parseLang } from './reporting/i18n.js';
 import { loadProfile } from './profile/profileStore.js';
 import { startMcpServer } from './mcp/server.js';
@@ -287,14 +287,13 @@ program
   .description('保存済みの日別スナップショットを隣り合う日どうしで比べ、カタログの更新履歴（新規・削除・会場や日時の変更）を日ごとにまとめたHTMLに書き出す（参照専用。ネットワークは使わない）')
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--since <date>', 'この日（YYYY-MM-DD）以降のスナップショットだけを使う。省略時は保存済みの全期間')
-  .option('-o, --out <file>', '出力先', join(DATA_DIR, 'digest.html'))
+  .option('-o, --out <file>', '出力先', DIGEST_HTML_PATH)
   .action((options: { eventId: string; since?: string; out: string }) => {
     if (options.since !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(options.since)) {
       throw new Error(`--since は YYYY-MM-DD の形で指定してください: "${options.since}"`);
     }
-    const periods = buildDigest(options.eventId, DATA_DIR, options.since);
-    writeDigestHtml(options.out, renderDigestHtml(options.eventId, periods, new Date()));
-    console.log(`保存しました: ${options.out}（${periods.length}期間）`);
+    const periods = generateDigestFile(options.eventId, DATA_DIR, options.out, options.since);
+    console.log(`保存しました: ${options.out}（${periods}期間）`);
   });
 
 program
@@ -542,6 +541,13 @@ program
       const result = await runWatchOnce(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH));
       const stamp = new Date().toLocaleTimeString('ja-JP', { hour12: false });
       for (const line of formatWatchReport(result, stamp)) console.log(line);
+      if (result.status === 'baseline' || result.status === 'checked') { // スナップショットを保存した回だけ、更新履歴を作り直す
+        try {
+          generateDigestFile(options.eventId, DATA_DIR, DIGEST_HTML_PATH);
+        } catch (err) {
+          console.error(`更新履歴の書き出しに失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       if (options.notify && result.events.length > 0) {
         await notifyDesktop('re:Roadie: 空席・新着の通知', summarizeForNotification(formatWatchEvents(result.events)));
       }

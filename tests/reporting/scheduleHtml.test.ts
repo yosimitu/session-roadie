@@ -20,6 +20,22 @@ describe('buildScheduleHtml', () => {
   const a = session('a', 'AIM101', '2026-11-30', '08:30', '60', 'MGM Grand');
   const b = session('b', 'AIM102', '2026-12-01', '10:00', '60', 'Venetian');
 
+  it('digestPeriods があるときだけ「更新履歴」タブを出し、日英で表示する', () => {
+    const periods = [{ from: '2026-10-01', to: '2026-10-02', diff: { added: [b], removed: [], changed: [] } }];
+    const base = { schedule: schedule([]), sessions: [a, b], generatedAt: GENERATED_AT };
+    expect(buildScheduleHtml(base)).not.toContain('data-v="digest"');
+
+    const ja = buildScheduleHtml({ ...base, digestPeriods: periods });
+    expect(ja).toContain('data-v="digest"');
+    expect(ja).toContain('更新履歴');
+    expect(ja).toContain('id="vdigest"');
+    expect(ja).toContain('Title AIM102');
+
+    const en = buildScheduleHtml({ ...base, digestPeriods: periods, lang: 'en' });
+    expect(en).toContain('Update history');
+    expect(en).toContain('Removed');
+  });
+
   it('予約済みセッションを日別に、時刻・略称・タイトル・会場つきで出力する', () => {
     const out = html(schedule(['a', 'b']), [a, b]);
     expect(out).toContain('id="day-2026-11-30"');
