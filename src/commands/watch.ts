@@ -3,7 +3,8 @@ import type { Session } from '../api/types.js';
 import { fetchAllSessions } from '../catalog/fetchAll.js';
 import { recordSeatHistory } from '../catalog/seatHistory.js';
 import { searchCatalog } from '../catalog/search.js';
-import { buildWatchState, detectWatchEvents, type WatchContext, type WatchEvent } from '../catalog/watch.js';
+import { saveSnapshot } from '../catalog/store.js';
+import { brief, buildWatchState, detectWatchEvents, type SessionBrief, type WatchContext, type WatchEvent } from '../catalog/watch.js';
 import { loadWatchState, saveWatchState } from '../catalog/watchState.js';
 import { datesWithinAttendance, searchDefaultsFromProfile } from '../planning/preferences.js';
 import type { Profile } from '../profile/profileStore.js';
@@ -17,6 +18,8 @@ export interface WatchResult {
   status: WatchStatus;
   sessionCount: number;
   events: WatchEvent[];
+  /** 前回の観測に無かったセッションの全件（プロフィールに合うかは問わない）。基準の保存のときは付かない */
+  newSessions?: SessionBrief[];
 }
 
 /** 新着のうち、catalog_search の既定の絞り込み（参加日・希望レベル・スポンサー除外）と関心テーマに合うものだけを残す */
@@ -57,7 +60,9 @@ export async function runWatchOnce(
     return { status: 'shrunk', sessionCount: current.length, events: [] };
   }
 
-  recordSeatHistory(eventId, current, dataDir, now.toISOString().slice(0, 10)); // 満席予報に使う空席表示の履歴
+  const today = now.toISOString().slice(0, 10);
+  recordSeatHistory(eventId, current, dataDir, today); // 満席予報に使う空席表示の履歴
+  saveSnapshot(eventId, current, dataDir, today); // 日別のカタログ履歴（sync --since で比べる）
   const schedule = await runScheduleStatus(client, eventId);
   const events = previous
     ? detectWatchEvents(previous, current, {
@@ -67,6 +72,10 @@ export async function runWatchOnce(
       })
     : [];
 
+  const newSessions = previous
+    ? current.filter((s) => !Object.hasOwn(previous.sessions, s.sessionId)).map(brief)
+    : undefined;
+
   saveWatchState(eventId, buildWatchState(current, now, previous), dataDir);
-  return { status: previous ? 'checked' : 'baseline', sessionCount: current.length, events };
+  return { status: previous ? 'checked' : 'baseline', sessionCount: current.length, events, ...(newSessions ? { newSessions } : {}) };
 }

@@ -80,7 +80,7 @@ export interface WatchContext {
   filterNew: (added: Session[]) => Session[];
 }
 
-function brief(s: Session): SessionBrief {
+export function brief(s: Session): SessionBrief {
   return {
     sessionId: s.sessionId,
     abbreviation: s.abbreviation,

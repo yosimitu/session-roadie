@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  formatWatchEvent, formatWatchEvents, formatWatchReport, summarizeForNotification, notifyDesktop,
+  formatWatchEvent, formatWatchEvents, formatWatchReport, summarizeForNotification, summarizeNewSessions, notifyDesktop,
 } from '../../src/commands/watchReport.js';
 import type { WatchEvent, SessionBrief } from '../../src/catalog/watch.js';
 import type { WatchResult } from '../../src/commands/watch.js';
@@ -87,5 +87,26 @@ describe('notifyDesktop', () => {
     const ok = await notifyDesktop('t', 'm', { platform: 'win32', run: async () => { called = true; } });
     expect(ok).toBe(false);
     expect(called).toBe(false);
+  });
+});
+
+describe('summarizeNewSessions', () => {
+  const sess = (id: string, time: string) => brief({ sessionId: id, abbreviation: id, title: `T-${id}`, time });
+  it('新着が無ければ null（基準の保存のときも）', () => {
+    expect(summarizeNewSessions({ status: 'checked', sessionCount: 1, events: [], newSessions: [] })).toBeNull();
+    expect(summarizeNewSessions({ status: 'baseline', sessionCount: 1, events: [] })).toBeNull();
+  });
+  it('件数と上位3件を出し、プロフィールに合うものを先にする', () => {
+    const newSessions = [sess('A', '08:00'), sess('B', '09:00'), sess('C', '10:00'), sess('D', '11:00'), sess('E', '12:00')];
+    const events: WatchEvent[] = [{ kind: 'newMatching', session: sess('E', '12:00') }];
+    expect(summarizeNewSessions({ status: 'checked', sessionCount: 9, events, newSessions }))
+      .toBe('新着5件: E T-E / A T-A / B T-B ほか2件');
+  });
+  it('スポンサー枠は上位から外し、長いタイトルは省略しても「ほかN件」が残る', () => {
+    const long = brief({ sessionId: 'L', abbreviation: 'L1', title: 'x'.repeat(100), time: '09:00' });
+    const spons = brief({ sessionId: 'S', abbreviation: 'S1-S', title: 'Sponsored', time: '07:00' });
+    const newSessions = [spons, long, sess('B', '10:00'), sess('C', '11:00'), sess('D', '12:00')];
+    const text = summarizeNewSessions({ status: 'checked', sessionCount: 9, events: [], newSessions })!;
+    expect(text).toBe(`新着5件: L1 ${'x'.repeat(40)}… / B T-B / C T-C ほか2件`);
   });
 });

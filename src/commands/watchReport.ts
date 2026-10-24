@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { SessionBrief, WatchEvent, WatchRole } from '../catalog/watch.js';
+import type { Session } from '../api/types.js';
+import { isSponsored } from '../catalog/search.js';
 import type { WatchResult } from './watch.js';
 
 const ROLE_LABEL: Record<WatchRole, string> = { reserved: '予約', favorite: 'お気に入り' };
@@ -54,6 +56,32 @@ export function summarizeForNotification(lines: string[]): string {
   const first = lines[0] ?? '';
   const text = lines.length > 1 ? `${first} ほか${lines.length - 1}件` : first;
   return text.length > NOTIFICATION_MAX_LENGTH ? text.slice(0, NOTIFICATION_MAX_LENGTH) : text;
+}
+
+const NEW_SESSIONS_TOP = 3;
+const NEW_SESSION_TITLE_MAX = 40;
+
+function shortLabel(s: SessionBrief): string {
+  const title = s.title.length > NEW_SESSION_TITLE_MAX ? `${s.title.slice(0, NEW_SESSION_TITLE_MAX)}…` : s.title;
+  return `${s.abbreviation ?? s.sessionId} ${title}`;
+}
+
+const sponsored = (s: SessionBrief) => isSponsored(s as Session);
+
+/** カタログの新着の通知文。プロフィールに合うものを先に、スポンサー枠は後ろに、残りは日時順で上位数件を並べる。新着が無ければ null */
+export function summarizeNewSessions(result: WatchResult, top = NEW_SESSIONS_TOP): string | null {
+  const added = result.newSessions ?? [];
+  if (added.length === 0) return null;
+  const matching = new Set(result.events.flatMap((e) => (e.kind === 'newMatching' ? [e.session.sessionId] : [])));
+  const startsAt = (s: SessionBrief) => `${s.date ?? ''} ${s.time ?? ''}`;
+  const ranked = [...added].sort(
+    (a, b) =>
+      Number(sponsored(a)) - Number(sponsored(b)) ||
+      Number(matching.has(b.sessionId)) - Number(matching.has(a.sessionId)) ||
+      startsAt(a).localeCompare(startsAt(b)),
+  );
+  const text = `新着${added.length}件: ${ranked.slice(0, top).map(shortLabel).join(' / ')}${added.length > top ? ` ほか${added.length - top}件` : ''}`;
+  return text;
 }
 
 export type CommandRunner = (file: string, args: string[]) => Promise<void>;

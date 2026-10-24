@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { runWatchOnce } from '../../src/commands/watch.js';
 import { loadWatchState } from '../../src/catalog/watchState.js';
 import { loadSeatHistory } from '../../src/catalog/seatHistory.js';
+import { listSnapshotDates, loadSnapshotByDate } from '../../src/catalog/store.js';
 import type { ApiClient } from '../../src/api/client.js';
 import type { Profile } from '../../src/profile/profileStore.js';
 import type { Session } from '../../src/api/types.js';
@@ -50,6 +51,18 @@ describe('runWatchOnce', () => {
     list = [s('1', { seatAvailability: 'limited' }), s('2')];
     await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
     expect(loadSeatHistory('reinvent2026', dir)).toEqual([{ date: '2026-10-11', seats: { '1': 'limited' } }]);
+  });
+
+  it('観測した日のカタログを日別スナップショットに保存する（カタログが空のときは保存しない）', async () => {
+    let list: Session[] = [];
+    const client = fakeClient(() => list, { reserved: [], favorites: [] });
+    await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect(listSnapshotDates('reinvent2026', dir)).toEqual([]);
+
+    list = [s('1'), s('2')];
+    await runWatchOnce(client, 'reinvent2026', dir, noProfile, now);
+    expect(listSnapshotDates('reinvent2026', dir)).toEqual(['2026-10-11']);
+    expect(loadSnapshotByDate('reinvent2026', dir, '2026-10-11')?.map((x) => x.sessionId)).toEqual(['1', '2']);
   });
 
   it('2回目は前回との差でイベントを返し、状態を更新する', async () => {

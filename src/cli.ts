@@ -35,7 +35,7 @@ import { loadProfile } from './profile/profileStore.js';
 import { startMcpServer } from './mcp/server.js';
 import type { BulkResult, Session } from './api/types.js';
 import { runWatchOnce } from './commands/watch.js';
-import { formatWatchReport, summarizeForNotification, formatWatchEvents, notifyDesktop } from './commands/watchReport.js';
+import { formatWatchReport, summarizeForNotification, summarizeNewSessions, formatWatchEvents, notifyDesktop } from './commands/watchReport.js';
 import { parseIntervalMinutes, runWatchLoop } from './commands/watchLoop.js';
 
 // 対話するコマンド1回の実行につきreadlineインターフェースは1つだけ作る。
@@ -529,6 +529,8 @@ program
       if (options.notify && result.events.length > 0) {
         await notifyDesktop('re:Roadie: 空席・新着の通知', summarizeForNotification(formatWatchEvents(result.events)));
       }
+      const newSummary = summarizeNewSessions(result);
+      if (options.notify && newSummary) await notifyDesktop('re:Roadie: カタログの新着', newSummary);
     };
 
     if (intervalMinutes === undefined) {
