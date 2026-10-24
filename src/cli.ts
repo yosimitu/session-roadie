@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { join, dirname } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface, type Interface } from 'node:readline';
@@ -30,6 +30,7 @@ import { runTrends, formatTrends } from './commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
 import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, DIGEST_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
+import { describe } from './helpText.js';
 import { generateDigestFile } from './reporting/digestHtml.js';
 import { parseLang } from './reporting/i18n.js';
 import { loadProfile } from './profile/profileStore.js';
@@ -154,7 +155,7 @@ program
 
 program
   .command('init')
-  .description('初めての参加者向けの対話セットアップ。YAMLを直接書かずに初期プロフィール・意図を作る（企画書 §5.1）')
+  .description('初めての参加者向けの対話セットアップ（初期プロフィールと意図を作る）')
   .action(async () => {
     try {
       const role = await askChoice<OnboardingRole>('普段の仕事は？', [
@@ -241,9 +242,10 @@ function printCatalogDiff(diff: CatalogDiff): void {
 
 program
   .command('sync')
-  .description('カタログ全件を取得し、前回のローカルスナップショットとの差分を表示する')
+  .summary('カタログ全件を取得し、前回との差分を表示する')
+  .description(describe('カタログ全件を取得し、前回との差分を表示する', 'sync'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
-  .option('--since <date>', '指定日(YYYY-MM-DD)のスナップショットと比較する（例: 1週間前の新着を確認）。省略時は前回保存分と比較')
+  .option('--since <date>', '比べる基準日（YYYY-MM-DD）。保存済みの日別スナップショットが対象（例: 1週間前の新着を確認）。省略時は前回保存分')
   .action(async (options: { eventId: string; since?: string }) => {
     const diff = options.since
       ? (await runSyncSince(await createClient(), options.eventId, DATA_DIR, options.since)).diff
@@ -265,12 +267,13 @@ program
 
 program
   .command('view')
-  .description('現在のスケジュールとカタログ全件を、タブ付きの1枚のHTML（予定・セッション一覧・全体像・メモ候補）に書き出す（参照専用。予定は変更しない）')
+  .summary('スケジュールとカタログ全件を、タブ付きの1枚のHTMLに書き出す（参照専用）')
+  .description(describe('スケジュールとカタログ全件を、タブ付きの1枚のHTMLに書き出す（参照専用）', 'view'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-d, --date <date>', '「予定」タブをこの日（会場PSTの YYYY-MM-DD）だけにする。省略時は全日')
   .option('--new-since <date>', '「新着」の比較元にするスナップショットの日付（YYYY-MM-DD）。省略時は今日より前で最新の日付')
   .option('--lang <lang>', '画面の言語（ja か en）。カタログ由来のタイトル・概要は翻訳しない', 'ja')
-  .option('-o, --out <file>', '出力先', SCHEDULE_HTML_PATH)
+  .addOption(new Option('-o, --out <file>', '出力先').default(SCHEDULE_HTML_PATH, 'data/schedule.html'))
   .action(async (options: { eventId: string; date?: string; newSince?: string; lang: string; out: string }) => {
     const lang = parseLang(options.lang);
     const snapshot = loadSnapshot(options.eventId, DATA_DIR);
@@ -284,10 +287,11 @@ program
 
 program
   .command('digest')
-  .description('保存済みの日別スナップショットを隣り合う日どうしで比べ、カタログの更新履歴（新規・削除・会場や日時の変更）を日ごとにまとめたHTMLに書き出す（参照専用。ネットワークは使わない）')
+  .summary('日別スナップショットを比べ、カタログの更新履歴（新規・削除・変更）をHTMLに書き出す')
+  .description(describe('日別スナップショットを比べ、カタログの更新履歴（新規・削除・変更）をHTMLに書き出す', 'digest'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
-  .option('--since <date>', 'この日（YYYY-MM-DD）以降のスナップショットだけを使う。省略時は保存済みの全期間')
-  .option('-o, --out <file>', '出力先', DIGEST_HTML_PATH)
+  .option('--since <date>', '対象の開始日（YYYY-MM-DD）。この日以降の日別スナップショットだけを使う。省略時は保存済みの全期間')
+  .addOption(new Option('-o, --out <file>', '出力先').default(DIGEST_HTML_PATH, 'data/digest.html'))
   .action((options: { eventId: string; since?: string; out: string }) => {
     if (options.since !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(options.since)) {
       throw new Error(`--since は YYYY-MM-DD の形で指定してください: "${options.since}"`);
@@ -298,7 +302,8 @@ program
 
 program
   .command('apply <desiredStateFile>')
-  .description('あるべき状態（予約・お気に入りのセッションID一覧）を実スケジュールと突き合わせ、差分だけ実行する（企画書 §5.2・§5.9）')
+  .summary('あるべき状態（予約・お気に入り）を実スケジュールと突き合わせ、差分だけ実行する')
+  .description(describe('あるべき状態（予約・お気に入り）を実スケジュールと突き合わせ、差分だけ実行する', 'apply'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (desiredStateFile: string, options: { eventId: string; yes: boolean }) => {
@@ -354,7 +359,8 @@ program
 
 program
   .command('travel-blocks')
-  .description('予約済みセッション間の移動時間をCreatePersonalTimeで確保する（企画書 §5.3）')
+  .summary('予約済みセッション間の移動時間を、個人予定として公式スケジュールに書き込む')
+  .description(describe('予約済みセッション間の移動時間を、個人予定として公式スケジュールに書き込む', 'travel-blocks'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-y, --yes', '確認プロンプトをスキップする', false)
   .action(async (options: { eventId: string; yes: boolean }) => {
@@ -396,7 +402,8 @@ program
 
 program
   .command('conflicts')
-  .description('予約済みセッションの時間重複を検出し、諦める判断材料（再演・類似セッション）を根拠つきで表示する（企画書 §5.4）')
+  .summary('予約済みセッションの時間重複を検出し、諦める判断材料を出す')
+  .description(describe('予約済みセッションの時間重複を検出し、諦める判断材料を出す', 'conflicts'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .action(async (options: { eventId: string }) => {
     const client = await createClient();
@@ -428,7 +435,7 @@ program
     }
   });
 
-const notes = program.command('notes').description('セッションへのメモ（企画書 §5.7）');
+const notes = program.command('notes').description('セッションへのメモ');
 notes
   .command('list')
   .description('保存済みのメモを一覧表示する')
@@ -526,7 +533,8 @@ auth
 
 program
   .command('watch')
-  .description('カタログを取得し、満席だったお気に入り（と再演）の空席表示・プロフィールに合う新着・予約とお気に入りの変更と取消を知らせる（予約はしない）')
+  .summary('前回からの変化（空席表示・新着・予約とお気に入りの変更）を知らせる（予約はしない）')
+  .description(describe('前回からの変化（空席表示・新着・予約とお気に入りの変更）を知らせる（予約はしない）', 'watch'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--interval <minutes>', '指定した分ごとに繰り返す（5分以上の整数）。省略時は1回だけ確認して終了する')
   .option('--notify', 'macOS のデスクトップ通知も出す（macOS 以外ではコンソール表示のみ）', false)
@@ -571,7 +579,8 @@ program
 
 program
   .command('now')
-  .description('いまから間に合うセッションを出す（開始が移動時間のあとで、予約・個人予定と重ならず、満席表示でないもの）。予約はしない')
+  .summary('いまから間に合うセッションを出す（予約はしない）')
+  .description(describe('いまから間に合うセッションを出す（予約はしない）', 'now'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--at <time>', '現地時刻を指定する（"YYYY-MM-DD HH:MM"、会場の時刻）。省略時は現在時刻')
   .option('--venue <venue>', '現在いる会場。省略時は、開催中または直近に終わった予約の会場')
@@ -589,7 +598,8 @@ program
 
 program
   .command('forecast')
-  .description('空席表示の履歴から、近いうちに埋まりそうなセッションと穴場を出す（見積もり。予約はしない）')
+  .summary('空席表示の履歴から、近いうちに埋まりそうなセッションと穴場を出す（見積もり。予約はしない）')
+  .description(describe('空席表示の履歴から、近いうちに埋まりそうなセッションと穴場を出す（見積もり。予約はしない）', 'forecast'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--horizon <days>', 'この日数以内に満席になる見込みのものを出す', '14')
   .option('--limit <n>', '区分ごとの表示件数', '10')
@@ -603,7 +613,8 @@ program
 
 program
   .command('detour')
-  .description('予約の合間に収まる、関心の外のセッション（寄り道）を日ごとに提案する。予約はしない')
+  .summary('予約の合間に収まる「寄り道」を日ごとに提案する（予約はしない）')
+  .description(describe('予約の合間に収まる「寄り道」を日ごとに提案する（予約はしない）', 'detour'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('-d, --date <dates...>', '会場の日付 YYYY-MM-DD（複数可）。省略時は予約のある日')
   .option('--per-day <n>', '1日あたりの候補数', '3')
@@ -617,9 +628,10 @@ program
 
 program
   .command('trends')
-  .description('カタログの傾向（話題・サービス・形式・日別の件数と、基準日からの増減、増えた語、予約・お気に入りとの違い）を出す。件数は掲載数で、AWSの注力を表すとは限らない')
+  .summary('カタログの傾向（件数・増減・増えた語・自分の予約との違い）を出す')
+  .description(describe('カタログの傾向（件数・増減・増えた語・自分の予約との違い）を出す', 'trends'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
-  .option('--since <date>', '比べる基準日 YYYY-MM-DD（保存済みの日付別スナップショット）。省略時は最も古い日')
+  .option('--since <date>', '比べる基準日（YYYY-MM-DD）。保存済みの日別スナップショットが対象。省略時は最も古い日')
   .option('--keyword <words...>', 'タイトルに含まれる件数を数えたい語（複数可）')
   .option('--limit <n>', '区分ごとの表示件数', '10')
   .action(async (options: { eventId: string; since?: string; keyword?: string[]; limit: string }) => {
