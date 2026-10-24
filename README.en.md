@@ -114,7 +114,7 @@ Besides your usual work, your goal for this trip, your stamina, your attendance 
 | `re-roadie view` | Writes the current schedule and the whole catalog to a single tabbed HTML file (default `data/schedule.html`). Read-only; it does not change your official schedule.<ul><li>Tabs: "Schedule", "Session list", "Overview", "Note candidates", "Update history"</li><li>The Schedule tab warns about overlaps, overlaps with personal time, insufficient travel time, and sessions that overlap lunch</li><li>The session list has a "recommended" sort and mark (computed at generation time without an LLM)</li><li>No external scripts or styles are loaded</li><li>About 2.7 MB because it embeds the whole catalog (it grows with the number of "Update history" periods). Not committed (`data/*.html` is ignored)</li><li>Details of each tab: `re-roadie view --help`</li></ul><b>Options</b><ul><li>`--date YYYY-MM-DD`: limits the Schedule tab to that day</li><li>`--new-since YYYY-MM-DD`: baseline for "new" (default: the latest per-day snapshot before today)</li><li>`--lang en`: switches the page to English (catalog titles and abstracts stay in the original; the English-to-Japanese translate buttons exist only in the Japanese page)</li><li>`--out`: output path</li></ul> |
 | `re-roadie digest` | Compares saved daily snapshots day to day and writes a catalog update history (new, removed, and venue/room/time changes) as an HTML file (default `data/digest.html`, not committed).<ul><li>Uses no network</li><li>A period that spans days without a snapshot is labeled as merged</li><li>Snapshots are saved by `sync` and `watch`</li></ul><b>Options</b><ul><li>`--since YYYY-MM-DD`: limits it to that day onward</li><li>`-o`: output path</li></ul> |
 | `re-roadie apply <desiredStateFile>` | Compares the desired state (session IDs to reserve or favorite) with the actual schedule and runs only the diff.<ul><li>Shows the operations and asks for confirmation before running</li><li>When something changes, saves the reservations and favorites from before the run to `data/schedule-backup-<eventId>-<timestamp>.json`</li><li>Always re-checks with `GetSchedule` afterwards</li></ul><b>Options</b><ul><li>`-y`, `--yes`: skips the confirmation prompt</li></ul> |
-| `re-roadie watch` | Fetches the catalog and reports what changed since the last check (it never reserves). It covers the seat display of favorites that were full and of their repeats, new sessions that match your profile (attendance days, preferred level, sponsored-session exclusion, topics of interest), and venue/time changes and cancellations of your reservations and favorites.<ul><li>The first run only saves a baseline and does not notify</li><li>The state is not updated when the catalog returns 0 sessions or the fetched count is under half of the previous one</li><li>A changed seat display does not guarantee you can reserve (a session can be full even when it shows `limited`)</li><li>With `--notify`, another notification gives the count of new sessions (whether or not they match your profile) and the top 3 (profile matches first, sponsored last)</li><li>Each run saves that day's catalog as a daily snapshot (`data/catalog-<eventId>-YYYY-MM-DD.json`, about 3 MB; overwritten within a day) and regenerates `data/digest.html` (a write failure does not stop notifications). As a result, a bare `sync` compares against the latest `watch` fetch</li><li>State is kept in `data/watch-state-<eventId>.json` (not committed). It is shared with the MCP `catalog_watch`, so use only one of them</li></ul><b>Options</b><ul><li>`--interval 10`: repeats every given number of minutes (integer, 5 or more); runs once if omitted</li><li>`--notify`: also shows a macOS desktop notification</li></ul> |
+| `re-roadie watch` | Fetches the catalog and reports what changed since the last check (it never reserves). It covers the seat display of favorites that were full and of their repeats, new sessions that match your profile (attendance days, preferred level, sponsored-session exclusion, topics of interest), and venue/time changes and cancellations of your reservations and favorites.<ul><li>The first run only saves a baseline and does not notify</li><li>The state is not updated when the catalog returns 0 sessions or the fetched count is under half of the previous one</li><li>A changed seat display does not guarantee you can reserve (a session can be full even when it shows `limited`)</li><li>With `--notify`, another notification gives the count of new sessions (whether or not they match your profile) and the top 3 (profile matches first, sponsored last)</li><li>Each run saves that day's catalog as a daily snapshot (`data/catalog-<eventId>-YYYY-MM-DD.json`, about 3 MB; overwritten within a day) and regenerates `data/digest.html` (a write failure does not stop notifications). As a result, a bare `sync` compares against the latest `watch` fetch</li><li>State is kept in `data/watch-state-<eventId>.json` (not committed). It is shared with the MCP `catalog_watch`, so use only one of them</li></ul><b>Options</b><ul><li>`--interval 10`: repeats every given number of minutes (integer, 5 or more); runs once if omitted</li><li>`--notify`: also shows a desktop notification (macOS and Windows; console output only elsewhere)</li></ul> |
 | `re-roadie now` | Lists sessions you can still make right now (it never reserves).<ul><li>A session qualifies when it starts after "now + travel time from where you are", within `--within` minutes, does not overlap your reservations or personal time, and is not shown as full. Ordered by favorites, topics of interest, then seat availability</li><li>Because you must reach the room 10 minutes before the start, the "in time" check adds 10 minutes to the travel time</li><li>Sessions shown as full are listed under a separate heading. Per the official FAQ, each session holds back some seats for walk-up attendees, so you may get in by joining the queue on site (a seat is not guaranteed)</li><li>Formats that cannot be reserved (`isReservable` is false) are noted</li><li>`walkUp` is presumably a queue-on-the-day format, which is unconfirmed</li></ul><b>Options</b><ul><li>`--within <minutes>`: only sessions starting within this many minutes (default 90)</li><li>`--venue <venue>`: where you are (default: the venue of the reservation in progress or just ended)</li><li>`--at "2026-12-02 10:30"`: venue local time, to try it outside the event</li><li>`--limit <n>`: number of results (default 10)</li></ul> |
 | `re-roadie forecast` | From the history of seat displays, shows sessions likely to fill soon, quiet hidden gems in your topics of interest, and sessions whose seats are increasing (it never reserves).<ul><li>`sync` and `watch` build the history daily (`data/seat-history-<eventId>.json` plus the dated snapshots)</li><li>It is an estimate that assumes the recent pace of change continues, not a seat count</li><li>With less than two days of history no forecast is made, and confidence stays `low` while observations are few</li></ul><b>Options</b><ul><li>`--horizon <days>`: shows sessions expected to fill within this many days (default 14)</li><li>`--limit <n>`: results per section (default 10)</li></ul> |
 | `re-roadie detour` | Suggests "detours" that fit between your reservations, per day (it never reserves).<ul><li>Sessions are ordered by a small interest strength (declared interest = 3, each reservation = 2, each favorite = 1, summed per topic), and only those at 3 or below are shown</li><li>They must not overlap your reservations or personal time, leave room for travel, not be full, and satisfy your profile's level, sponsored-session, and start-time settings</li><li>It is deterministic: the same input gives the same result</li></ul><b>Options</b><ul><li>`-d`, `--date <dates...>`: days to cover (several allowed; default: days with reservations)</li><li>`--per-day <n>`: candidates per day (default 3)</li></ul> |
@@ -270,18 +270,80 @@ An attendee who wants to focus on Lambda and serverless talks to Claude Code. Cl
 
 ### Every day: watch for seats, new sessions, and changes
 
-Run `re-roadie watch --notify` daily (with launchd on macOS, cron, or similar) to be notified of:
+Run `re-roadie watch` daily to be told about:
 - a change in the seat display of a full favorite (or its repeat)
 - new sessions that match your profile
 - venue or time changes, and cancellations, of your reservations and favorites
 
-When a notification arrives, ask:
+When you see a report, ask:
 
 > **You**: Reserve SVS327-R1.
 >
 > **Claude**: Shows the diff and reserves after you confirm. If the session is full, reports `sessionFull`.
 
 A changed seat display does not guarantee a reservation. `watch` never reserves anything.
+
+Notifications and the daily run differ by OS.
+
+| OS | Notification | Daily run |
+| --- | --- | --- |
+| macOS | `--notify` shows a desktop notification | launchd |
+| Windows | `--notify` shows a toast notification (it uses `powershell.exe`, i.e. Windows PowerShell 5.1) | Task Scheduler |
+
+#### macOS (launchd)
+
+Put the following in `~/Library/LaunchAgents/com.example.session-roadie-watch.plist`. Adjust the paths to `node` and `dist/cli.js`, and `WorkingDirectory`, to your environment.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.session-roadie-watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/path/to/session-roadie/dist/cli.js</string>
+        <string>watch</string>
+        <string>--notify</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/session-roadie</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/<user name>/Library/Logs/session-roadie-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/<user name>/Library/Logs/session-roadie-watch.log</string>
+</dict>
+</plist>
+```
+
+Register it with `launchctl load ~/Library/LaunchAgents/com.example.session-roadie-watch.plist`. If the Mac is asleep at 9:00, the job runs after it wakes. If it is powered off, the job does not run.
+
+#### Windows (Task Scheduler)
+
+In PowerShell, adjust the repository root path to your environment and run the following. It has not been verified on a real Windows machine.
+
+```powershell
+$root = 'C:\path\to\session-roadie'
+$node = (Get-Command node).Source
+$action = New-ScheduledTaskAction -Execute $node -Argument 'dist\cli.js watch' -WorkingDirectory $root
+$trigger = New-ScheduledTaskTrigger -Daily -At 9:00
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName 'session-roadie-watch' -Action $action -Trigger $trigger -Settings $settings
+```
+
+- `-StartWhenAvailable` runs the task after the PC wakes if it was not running at 9:00.
+- To get notifications too, change `-Argument` to `'dist\cli.js watch --notify'`. The notification is a toast from `powershell.exe` (Windows PowerShell 5.1). It has not been verified on a real Windows machine.
+- If nothing appears, check that Windows Focus Assist and the Notifications setting are not turning it off. A failed notification does not stop `watch`; it prints "通知に失敗しました".
+- Without notifications, check new sessions and changes by opening `data/digest.html` or running `node dist/cli.js watch` by hand.
 
 ### At the event (December)
 
@@ -305,6 +367,7 @@ Anything that changes your reservations or schedule shows a diff and asks for co
 - **PersonalTime date and times are written in the venue's local time (PST), not UTC.** The official app displays the stored value as is. Writing travel blocks and note reminders, the overlap checks against personal time, and the `re-roadie view` rendering all use this form. This differs from the "UTC" wording in the API documentation, so personal time written in UTC by another client may look shifted.
 - **After you write with `CreatePersonalTime`, it takes a few minutes to over ten minutes for the content to appear in the official app's (smartphone) calendar.** The server-side data (what `GetSchedule` returns) is updated right away, but the app's client-side cache is not refreshed immediately.
 - **The update history (`digest` and the `view` "Update history" tab) compares days that have a daily snapshot.** Snapshots are saved only on days when `sync` or `watch` runs, so a period spanning days without one is labeled as a combined diff, and sessions that were added and removed in between do not appear.
+- **On Windows, the file permission (0600) on `data/token.json` and `data/schedule-backup-*.json` has no effect.** On macOS they are saved readable only by the owner, but on Windows the folder's permissions (ACL) apply as is. Do not keep the repository in a shared or synced folder.
 
 ## Tests
 
@@ -381,7 +444,7 @@ Example prompts for Claude Code. Free-form text is fine for all of them, with no
 | `re-roadie sync` | Gets the catalog diff |
 | `re-roadie view` | Writes the schedule and catalog to a single HTML file (`--date`, `--new-since`, and `--out` are available) |
 | `re-roadie schedule` | Lists reservations, favorites, and personal time |
-| `re-roadie watch` | Reports seat displays that opened on full favorites, new sessions matching your profile, and changes and cancellations of your reservations and favorites (`--interval 10` repeats, `--notify` adds a macOS notification) |
+| `re-roadie watch` | Reports seat displays that opened on full favorites, new sessions matching your profile, and changes and cancellations of your reservations and favorites (`--interval 10` repeats, `--notify` adds a desktop notification) |
 | `re-roadie conflicts` | Detects overlaps among reserved sessions |
 | `re-roadie init` | Profile questions (first-time setup, including priorities) |
 

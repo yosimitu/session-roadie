@@ -537,12 +537,20 @@ program
   .description(describe('前回からの変化（空席表示・新着・予約とお気に入りの変更）を知らせる（予約はしない）', 'watch'))
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--interval <minutes>', '指定した分ごとに繰り返す（5分以上の整数）。省略時は1回だけ確認して終了する')
-  .option('--notify', 'macOS のデスクトップ通知も出す（macOS 以外ではコンソール表示のみ）', false)
+  .option('--notify', 'デスクトップ通知も出す（macOS と Windows。それ以外ではコンソール表示のみ）', false)
   .action(async (options: { eventId: string; interval?: string; notify: boolean }) => {
     const intervalMinutes = options.interval === undefined ? undefined : parseIntervalMinutes(options.interval);
-    if (options.notify && process.platform !== 'darwin') {
-      console.warn('警告: --notify は macOS のみ対応です。コンソール表示のみにします。');
+    if (options.notify && process.platform !== 'darwin' && process.platform !== 'win32') {
+      console.warn('警告: --notify は macOS と Windows のみ対応です。コンソール表示のみにします。');
     }
+    // 通知に失敗しても、確認の結果（状態の保存・更新履歴）は残るので、監視は止めずに警告だけ出す
+    const notify = async (title: string, message: string): Promise<void> => {
+      try {
+        await notifyDesktop(title, message);
+      } catch (err) {
+        console.error(`通知に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
 
     const tick = async (): Promise<void> => {
       const client = await createClient(); // 毎回呼ぶ（アクセストークンの自動更新のため）
@@ -557,10 +565,10 @@ program
         }
       }
       if (options.notify && result.events.length > 0) {
-        await notifyDesktop('re:Roadie: 空席・新着の通知', summarizeForNotification(formatWatchEvents(result.events)));
+        await notify('re:Roadie: 空席・新着の通知', summarizeForNotification(formatWatchEvents(result.events)));
       }
       const newSummary = summarizeNewSessions(result);
-      if (options.notify && newSummary) await notifyDesktop('re:Roadie: カタログの新着', newSummary);
+      if (options.notify && newSummary) await notify('re:Roadie: カタログの新着', newSummary);
     };
 
     if (intervalMinutes === undefined) {

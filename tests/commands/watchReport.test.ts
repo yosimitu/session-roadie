@@ -82,9 +82,25 @@ describe('notifyDesktop', () => {
     expect(calls[0].args.slice(-2)).toEqual(['本文 "quote" \\', '題名']);
     expect(calls[0].args.join(' ')).toContain('display notification (item 1 of argv) with title (item 2 of argv)');
   });
-  it('macOS以外では何もしない', async () => {
+  it('Windowsでは powershell.exe を、題と本文を環境変数で渡して呼ぶ（スクリプトに埋め込まない）', async () => {
+    const calls: Array<{ file: string; args: string[]; env?: Record<string, string> }> = [];
+    const ok = await notifyDesktop('題名', `本文 "quote" ' <tag> \\`, {
+      platform: 'win32', run: async (file, args, env) => { calls.push({ file, args, env }); },
+    });
+    expect(ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].file).toBe('powershell.exe');
+    expect(calls[0].args.slice(0, 3)).toEqual(['-NoProfile', '-NonInteractive', '-EncodedCommand']);
+    expect(calls[0].env).toEqual({ ROADIE_NOTIFY_TITLE: '題名', ROADIE_NOTIFY_MESSAGE: `本文 "quote" ' <tag> \\` });
+    const script = Buffer.from(calls[0].args[3], 'base64').toString('utf16le');
+    expect(script).toContain('ToastNotificationManager');
+    expect(script).toContain('$env:ROADIE_NOTIFY_TITLE');
+    expect(script).not.toContain('題名');
+    expect(script).not.toContain('quote');
+  });
+  it('macOS・Windows以外では何もしない', async () => {
     let called = false;
-    const ok = await notifyDesktop('t', 'm', { platform: 'win32', run: async () => { called = true; } });
+    const ok = await notifyDesktop('t', 'm', { platform: 'linux', run: async () => { called = true; } });
     expect(ok).toBe(false);
     expect(called).toBe(false);
   });

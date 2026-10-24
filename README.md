@@ -116,7 +116,7 @@ node dist/cli.js auth login
 | `re-roadie view` | 現在のスケジュールとカタログ全件を、タブ付きの1枚のHTML（既定 `data/schedule.html`）に書き出す。参照専用で、公式の予定は変更しない。<ul><li>タブは「予定」「セッション一覧」「全体像」「メモ候補」「更新履歴」</li><li>予定タブは、重複・個人予定との重複・移動不足・昼にかかる回を警告する</li><li>セッション一覧に、おすすめ順の並び替えと印がある（生成時に LLM なしで計算）</li><li>外部のスクリプト・スタイルは読み込まない</li><li>カタログ全件を埋め込むため約2.7MB（更新履歴の期間が増えるとその分大きくなる）。コミットしない（`data/*.html` は無視）</li><li>各タブの詳細は `re-roadie view --help`</li></ul><b>オプション</b><ul><li>`--date YYYY-MM-DD`: 「予定」タブをその日だけにする</li><li>`--new-since YYYY-MM-DD`: 「新着」の比較元（既定は今日より前で最新の日付別スナップショット）</li><li>`--lang en`: 画面を英語にする（カタログ由来のタイトル・概要は原文のまま。英→日の翻訳ボタンは日本語版だけ）</li><li>`--out`: 出力先</li></ul> |
 | `re-roadie digest` | 保存済みの日別スナップショットを隣り合う日どうしで比べ、カタログの更新履歴（新規・削除・会場／部屋／日時の変更）を日ごとにまとめた HTML（既定 `data/digest.html`、コミットしない）に書き出す。<ul><li>ネットワークは使わない</li><li>スナップショットがない日をまたぐ期間は「N日分をまとめた差分」と注記する</li><li>スナップショットは `sync` と `watch` が保存する</li></ul><b>オプション</b><ul><li>`--since YYYY-MM-DD`: その日以降に絞る</li><li>`-o`: 出力先</li></ul> |
 | `re-roadie apply <desiredStateFile>` | あるべき状態（予約・お気に入りにしたいセッションID）を実スケジュールと突き合わせ、差分だけ実行する。<ul><li>実行前に操作内容を表示して確認を取る</li><li>変更があるときは、実行前の予約・お気に入りを `data/schedule-backup-<eventId>-<日時>.json` に保存する</li><li>実行後は必ず `GetSchedule` で再照合する</li></ul><b>オプション</b><ul><li>`-y`, `--yes`: 確認プロンプトを省く</li></ul> |
-| `re-roadie watch` | カタログを取得し、前回の確認からの変化を知らせる（予約はしない）。対象は、満席だったお気に入りと、その再演の空席表示、プロフィール（参加日・希望レベル・スポンサー除外・関心テーマ）に合う新着、予約・お気に入りの会場・時間の変更と取消。<ul><li>初回は基準を保存するだけで通知しない</li><li>カタログが0件のとき、または取得件数が前回の半分未満のときは、状態を更新しない</li><li>空席表示は予約できることを保証しない（`limited` でも満席のことがある）</li><li>`--notify` では、プロフィールに合うかを問わず、新着の件数と上位3件（合うものが先、スポンサー枠は後ろ）も別の通知で出す</li><li>実行のたびに、その日のカタログを日別スナップショット（`data/catalog-<eventId>-YYYY-MM-DD.json`、約3MB。同じ日は上書き）に保存し、`data/digest.html` も作り直す（書き出しに失敗しても通知は止めない）。そのため、引数なしの `sync` の比較元は、直近の `watch` の取得分になる</li><li>状態は `data/watch-state-<eventId>.json`（コミットされない）。MCP の `catalog_watch` と共有するので、どちらか一方で使う</li></ul><b>オプション</b><ul><li>`--interval 10`: 指定した分（5分以上の整数）ごとに繰り返す。省略時は1回だけ</li><li>`--notify`: macOS のデスクトップ通知も出す</li></ul> |
+| `re-roadie watch` | カタログを取得し、前回の確認からの変化を知らせる（予約はしない）。対象は、満席だったお気に入りと、その再演の空席表示、プロフィール（参加日・希望レベル・スポンサー除外・関心テーマ）に合う新着、予約・お気に入りの会場・時間の変更と取消。<ul><li>初回は基準を保存するだけで通知しない</li><li>カタログが0件のとき、または取得件数が前回の半分未満のときは、状態を更新しない</li><li>空席表示は予約できることを保証しない（`limited` でも満席のことがある）</li><li>`--notify` では、プロフィールに合うかを問わず、新着の件数と上位3件（合うものが先、スポンサー枠は後ろ）も別の通知で出す</li><li>実行のたびに、その日のカタログを日別スナップショット（`data/catalog-<eventId>-YYYY-MM-DD.json`、約3MB。同じ日は上書き）に保存し、`data/digest.html` も作り直す（書き出しに失敗しても通知は止めない）。そのため、引数なしの `sync` の比較元は、直近の `watch` の取得分になる</li><li>状態は `data/watch-state-<eventId>.json`（コミットされない）。MCP の `catalog_watch` と共有するので、どちらか一方で使う</li></ul><b>オプション</b><ul><li>`--interval 10`: 指定した分（5分以上の整数）ごとに繰り返す。省略時は1回だけ</li><li>`--notify`: デスクトップ通知も出す（macOS と Windows。それ以外ではコンソール表示のみ）</li></ul> |
 | `re-roadie now` | いまから間に合うセッションを出す（予約はしない）。<ul><li>条件は、開始が「いま＋現在地からの移動時間」以降で、`--within` 以内に始まり、予約・個人予定と重ならず、満席表示でないこと。お気に入り・関心トピック・空席の多い順</li><li>開始の10分前までに着く必要があるため、間に合う判定は移動時間に10分を足す</li><li>満席表示のセッションは別の見出しで出す。公式 FAQ では各セッションに当日並ぶ人向けの席が一部残されており、現地の列に並べば入れる場合がある（席は保証されない）</li><li>予約できない形式（`isReservable` が false）は、その旨を注記する</li><li>`walkUp` は当日会場で並ぶ形式と思われるが、未確認</li></ul><b>オプション</b><ul><li>`--within <分>`: この分数以内に始まるものに絞る（既定90）</li><li>`--venue <会場>`: 現在地。省略時は、開催中・直近に終わった予約の会場</li><li>`--at "2026-12-02 10:30"`: 会場の現地時刻。会期外でも試せる</li><li>`--limit <件数>`: 表示件数（既定10）</li></ul> |
 | `re-roadie forecast` | 空席表示の履歴から、近いうちに埋まりそうなセッション、動いていない関心トピックの穴場、空きが増えているものを出す（予約はしない）。<ul><li>履歴は `sync` と `watch` が日ごとにためる（`data/seat-history-<eventId>.json` と日付別スナップショット）</li><li>段階が進む速さが続くと仮定した見積もりで、残席数ではない</li><li>履歴が2日分に満たないと予報は出ない。観測が少ないうちは信頼度が `low`</li></ul><b>オプション</b><ul><li>`--horizon <日数>`: この日数以内に満席になる見込みのものを出す（既定14）</li><li>`--limit <件数>`: 区分ごとの表示件数（既定10）</li></ul> |
 | `re-roadie detour` | 予約の合間に収まる「寄り道」を、日ごとに提案する（予約はしない）。<ul><li>関心の強さ（宣言した関心=3、予約=2、お気に入り=1 を、トピックごとに足したもの）が小さい順に、3以下のものだけを出す</li><li>予約・個人予定と重ならず、移動時間が取れ、満席でなく、プロフィールのレベル・スポンサー・開始時刻の条件に合うものが対象</li><li>ランダムではなく、同じ入力なら同じ結果になる</li></ul><b>オプション</b><ul><li>`-d`, `--date <日付...>`: 対象の日（複数可）。省略時は予約のある日</li><li>`--per-day <件数>`: 1日あたりの候補数（既定3）</li></ul> |
@@ -289,18 +289,80 @@ Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジ�
 
 ### 毎日: 空席・新着・変更を見張る
 
-`re-roadie watch --notify` を毎日実行すると（macOS なら launchd、cron などで定期実行）、次の変化が通知されます。
+`re-roadie watch` を毎日実行すると、次の変化を知らせます。
 - 満席だったお気に入り（とその再演）の空席表示の変化
 - プロフィールに合う新着
 - 予約・お気に入りの会場や時間の変更、取消
 
-通知を見たら、次のように頼みます。
+知らせを見たら、次のように頼みます。
 
 > **あなた**: SVS327-R1 を予約して
 >
 > **Claude**: 差分を見せ、確認すると予約します。満席なら `sessionFull` と報告します。
 
 空席表示が変わっても、予約できるとは限りません。`watch` は予約を実行しません。
+
+OS によって、通知と毎日の自動実行の方法が違います。
+
+| OS | 通知 | 毎日の自動実行 |
+| --- | --- | --- |
+| macOS | `--notify` でデスクトップ通知を出す | launchd |
+| Windows | `--notify` でトースト通知を出す（`powershell.exe`＝Windows PowerShell 5.1 を使う） | タスク スケジューラ |
+
+#### macOS（launchd）
+
+`~/Library/LaunchAgents/com.example.session-roadie-watch.plist` に次を置きます。`node` と `dist/cli.js` のパス、`WorkingDirectory` は自分の環境に合わせます。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.session-roadie-watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/path/to/session-roadie/dist/cli.js</string>
+        <string>watch</string>
+        <string>--notify</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/session-roadie</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/<ユーザー名>/Library/Logs/session-roadie-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/<ユーザー名>/Library/Logs/session-roadie-watch.log</string>
+</dict>
+</plist>
+```
+
+`launchctl load ~/Library/LaunchAgents/com.example.session-roadie-watch.plist` で登録します。9:00 に Mac がスリープ中だと、復帰後に実行されます。電源が落ちていると実行されません。
+
+#### Windows（タスク スケジューラ）
+
+PowerShell で、リポジトリのルートのパスを自分の環境に合わせて実行します。Windows 実機では動作を確認していません。
+
+```powershell
+$root = 'C:\path\to\session-roadie'
+$node = (Get-Command node).Source
+$action = New-ScheduledTaskAction -Execute $node -Argument 'dist\cli.js watch' -WorkingDirectory $root
+$trigger = New-ScheduledTaskTrigger -Daily -At 9:00
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName 'session-roadie-watch' -Action $action -Trigger $trigger -Settings $settings
+```
+
+- `-StartWhenAvailable` で、9:00 に PC が起きていなかったときも、起きたあとに実行します。
+- 通知も出すときは、`-Argument` を `'dist\cli.js watch --notify'` にします。通知は `powershell.exe`（Windows PowerShell 5.1）のトースト通知です。Windows 実機では動作を確認していません。
+- 通知が出ないときは、Windows の「集中モード」と、設定の「通知」でオフになっていないかを確認します。通知に失敗しても `watch` は止まらず、「通知に失敗しました」と出力します。
+- 通知を使わない場合は、`data/digest.html` を開くか、`node dist/cli.js watch` を手で実行して確認します。
 
 ### 現地（12月）
 
@@ -324,6 +386,7 @@ Claude Code → スキル/コマンド（手順だけ） → re:Roadie（ロジ�
 - **PersonalTime の日時は、UTC ではなく会場の現地時刻（PST）のまま書きます。** 公式アプリは保存値をそのまま表示します。移動ブロック・メモのリマインダーの書き込みと、個人予定との重なり判定、`re-roadie view` の描画は、すべてこの形式にそろえています。API ドキュメント上の「UTC」という表記とは異なるため、他のクライアントが UTC で書いた個人予定があると、時刻がずれて見える可能性があります。
 - **`CreatePersonalTime`で書き込んだ内容が公式アプリ（スマートフォン）のカレンダーに反映されるまで、数分〜十数分のラグがあります。** サーバー側のデータ（`GetSchedule`で取得できる内容）は即座に更新されますが、アプリのクライアント側キャッシュへの反映はすぐではありません。
 - **更新履歴（`digest` と `view` の「更新履歴」タブ）は、日別スナップショットがある日どうしの差分です。** スナップショットは `sync` と `watch` の実行日だけ保存されるため、保存のない日をまたぐ期間は「N日分をまとめた差分」になり、その間に追加されて消えたセッションは出ません。
+- **Windows では、`data/token.json` と `data/schedule-backup-*.json` のファイル権限（0600）が効きません。** macOS では所有者だけが読める権限で保存しますが、Windows ではフォルダの権限（ACL）がそのまま使われます。リポジトリを共有フォルダや同期フォルダに置かないでください。
 
 ## テスト
 
@@ -400,7 +463,7 @@ Claude Code に話しかけるときの文例です。いずれも自由文で�
 | `re-roadie sync` | カタログの差分を取る |
 | `re-roadie view` | 予定とカタログを1枚のHTMLに書き出す（`--date`、`--new-since`、`--out` を指定できる） |
 | `re-roadie schedule` | 予約・お気に入り・個人予定の一覧を表示する |
-| `re-roadie watch` | 満席だったお気に入りの空席表示・プロフィールに合う新着・予約とお気に入りの変更と取消を知らせる（`--interval 10` で繰り返し、`--notify` で macOS の通知） |
+| `re-roadie watch` | 満席だったお気に入りの空席表示・プロフィールに合う新着・予約とお気に入りの変更と取消を知らせる（`--interval 10` で繰り返し、`--notify` でデスクトップ通知） |
 | `re-roadie conflicts` | 予約済みセッションの重複を検出する |
 | `re-roadie init` | プロフィールの質問（初回セットアップ。優先順位を含む） |
 

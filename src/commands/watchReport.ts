@@ -84,28 +84,59 @@ export function summarizeNewSessions(result: WatchResult, top = NEW_SESSIONS_TOP
   return text;
 }
 
-export type CommandRunner = (file: string, args: string[]) => Promise<void>;
+export type CommandRunner = (file: string, args: string[], env?: Record<string, string>) => Promise<void>;
 
 const execFileAsync = promisify(execFile);
-const defaultRun: CommandRunner = async (file, args) => { await execFileAsync(file, args, { timeout: 10_000 }); };
+const defaultRun: CommandRunner = async (file, args, env) => {
+  await execFileAsync(file, args, { timeout: 10_000, env: env ? { ...process.env, ...env } : process.env });
+};
+
+// Windows のトースト通知（Windows PowerShell 5.1）。題と本文は環境変数で渡し、XML のテキストノードとして入れる
+// （引用符や記号を含んでも、スクリプトや XML の書き換えにならない）。送り元には、通知が受け付けられやすい
+// Windows PowerShell 自身の AppUserModelID を使う。
+const WINDOWS_TOAST_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml('<toast><visual><binding template="ToastGeneric"><text/><text/></binding></visual></toast>')
+$texts = $xml.GetElementsByTagName('text')
+$texts.Item(0).AppendChild($xml.CreateTextNode($env:ROADIE_NOTIFY_TITLE)) | Out-Null
+$texts.Item(1).AppendChild($xml.CreateTextNode($env:ROADIE_NOTIFY_MESSAGE)) | Out-Null
+$toast = New-Object Windows.UI.Notifications.ToastNotification $xml
+$appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
+`;
 
 /**
- * macOS のデスクトップ通知。本文と題は osascript の引数として渡し、スクリプトの文字列には埋め込まない
- * （引用符やバックスラッシュを含んでも、スクリプトの書き換えにならない）。
- * macOS 以外では何もせず false を返す。
+ * デスクトップ通知。macOS は osascript、Windows は PowerShell のトースト通知を使う。
+ * どちらも、本文と題はスクリプトの文字列に埋め込まず、引数か環境変数で渡す。
+ * それ以外の OS では何もせず false を返す。
  */
 export async function notifyDesktop(
   title: string,
   message: string,
   options: { platform?: NodeJS.Platform; run?: CommandRunner } = {},
 ): Promise<boolean> {
-  if ((options.platform ?? process.platform) !== 'darwin') return false;
+  const platform = options.platform ?? process.platform;
   const run = options.run ?? defaultRun;
-  await run('osascript', [
-    '-e', 'on run argv',
-    '-e', 'display notification (item 1 of argv) with title (item 2 of argv)',
-    '-e', 'end run',
-    message, title,
-  ]);
-  return true;
+  if (platform === 'darwin') {
+    await run('osascript', [
+      '-e', 'on run argv',
+      '-e', 'display notification (item 1 of argv) with title (item 2 of argv)',
+      '-e', 'end run',
+      message, title,
+    ]);
+    return true;
+  }
+  if (platform === 'win32') {
+    const encoded = Buffer.from(WINDOWS_TOAST_SCRIPT, 'utf16le').toString('base64');
+    await run(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      { ROADIE_NOTIFY_TITLE: title, ROADIE_NOTIFY_MESSAGE: message },
+    );
+    return true;
+  }
+  return false;
 }
