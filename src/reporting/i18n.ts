@@ -265,6 +265,10 @@ export interface PageStrings {
   subtitle: string;
   timezoneNote: string;
   created: (iso: string) => string;
+  signedInAs: (email: string) => string;
+  officialLinksLabel: string;
+  linkOfficialCatalog: string;
+  linkOfficialCalendar: string;
   tabSchedule: string;
   tabList: string;
   tabOverview: string;
@@ -312,6 +316,10 @@ const PAGE_JA: PageStrings = {
   subtitle: '参照専用です。この画面から公式の予定は変更できません。☆のメモ候補はこのブラウザだけに保存されます。',
   timezoneNote: '時刻はすべて会場現地時間（PST）です。日本時間は +17時間（例: 現地 08:30 は日本時間 翌日 01:30）。',
   created: (iso) => `作成: ${iso}（UTC）。`,
+  signedInAs: (email) => `この予定のアカウント: ${email}`,
+  officialLinksLabel: '公式サイト:',
+  linkOfficialCatalog: 'イベントカタログ',
+  linkOfficialCalendar: 'カレンダー',
   tabSchedule: '予定',
   tabList: 'セッション一覧',
   tabOverview: '全体像',
@@ -359,6 +367,10 @@ const PAGE_EN: PageStrings = {
   subtitle: 'Read-only. You cannot change your official schedule from this page. Note candidates (☆) are saved in this browser only.',
   timezoneNote: 'All times are venue local time (PST). Japan time is +17 hours (e.g. 08:30 local is 01:30 the next day in Japan).',
   created: (iso) => `Generated: ${iso} (UTC).`,
+  signedInAs: (email) => `Account for this schedule: ${email}`,
+  officialLinksLabel: 'Official site:',
+  linkOfficialCatalog: 'Event catalog',
+  linkOfficialCalendar: 'Calendar',
   tabSchedule: 'Schedule',
   tabList: 'Session list',
   tabOverview: 'Overview',

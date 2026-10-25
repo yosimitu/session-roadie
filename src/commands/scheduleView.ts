@@ -14,6 +14,7 @@ export interface ScheduleViewOptions {
   outPath: string;
   profile?: Profile;
   date?: string; // 会場PSTの "YYYY-MM-DD"。「予定」タブをその日だけにする。省略時は全日
+  account?: string; // サインイン中の Builder ID のメール。指定すると、ヘッダーに出す（どのアカウントの予定かを見分けるため）
   dataDir?: string; // 日付別スナップショットの場所。指定すると、比較元との差分を「新着」にする
   newSince?: string; // 新着の比較元にするスナップショットの日付。省略時は今日より前で最新の日付
   lang?: Lang; // 画面の言語。省略時は日本語
@@ -60,6 +61,7 @@ export async function runScheduleView(client: ApiClient, eventId: string, option
     newSessionIds: news.ids,
     newBaseline: news.baseline,
     lang: options.lang,
+    account: options.account,
     digestPeriods: options.dataDir ? buildDigest(eventId, options.dataDir) : undefined,
   });
   mkdirSync(dirname(options.outPath), { recursive: true });

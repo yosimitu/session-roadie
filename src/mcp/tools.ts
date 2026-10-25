@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { stringify } from 'yaml';
 import { runSync, runSyncSince } from '../commands/sync.js';
 import { runAuthStatus } from '../commands/authStatus.js';
+import { emailFromAccessToken } from '../auth/accountEmail.js';
 import { runScheduleStatus } from '../commands/scheduleStatus.js';
 import { reconcile } from '../schedule/reconcile.js';
 import { hasPlanChanges, saveScheduleBackup } from '../schedule/backup.js';
@@ -53,7 +54,8 @@ export async function authStatusTool() {
 
 export async function authLoginTool() {
   const token = await signIn(getTokenStore());
-  return { signedIn: true, expiresAt: new Date(token.expiresAt).toISOString() };
+  const email = emailFromAccessToken(token.accessToken);
+  return { signedIn: true, ...(email ? { email } : {}), expiresAt: new Date(token.expiresAt).toISOString() };
 }
 
 export async function authLogoutTool() {
@@ -158,8 +160,10 @@ export async function scheduleApplyTool(reserve: string[] | undefined, favorite:
 export async function scheduleViewTool(date?: string, eventId?: string, newSince?: string, lang?: string) {
   const id = resolveEventId(eventId);
   const snapshot = requireSnapshot(id);
-  return runScheduleView(await createClient(), id, {
+  const client = await createClient(); // トークンの更新もここで済む
+  return runScheduleView(client, id, {
     snapshot, outPath: SCHEDULE_HTML_PATH, profile: loadProfile(PROFILE_PATH), date, dataDir: DATA_DIR, newSince, lang: parseLang(lang),
+    account: emailFromAccessToken(getTokenStore().loadRaw()?.accessToken),
   });
 }
 

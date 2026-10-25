@@ -26,6 +26,13 @@ describe('runAuthStatus', () => {
     expect(await runAuthStatus(store, vi.fn())).toEqual({ signedIn: true, expiresAt: new Date(expiresAt).toISOString() });
   });
 
+  it('アクセストークンに email があれば、サインイン中のアカウントとして返す', async () => {
+    const expiresAt = Date.now() + 3600_000;
+    const accessToken = ['h', Buffer.from(JSON.stringify({ email: 'me@example.com' })).toString('base64url'), 's'].join('.');
+    store.save({ accessToken, expiresAt });
+    expect(await runAuthStatus(store, vi.fn())).toEqual({ signedIn: true, email: 'me@example.com', expiresAt: new Date(expiresAt).toISOString() });
+  });
+
   it('アクセストークン期限切れでもrefresh tokenで更新できればsignedIn: true（refreshed: true）', async () => {
     store.save({ accessToken: 'old', refreshToken: 'rt', expiresAt: Date.now() - 1000 });
     const newExpiresAt = Date.now() + 3600_000;

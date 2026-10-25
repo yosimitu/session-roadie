@@ -9,6 +9,7 @@ import { signIn, signOut } from './auth/signIn.js';
 import { runSync, runSyncSince } from './commands/sync.js';
 import type { CatalogDiff } from './catalog/diff.js';
 import { runAuthStatus } from './commands/authStatus.js';
+import { emailFromAccessToken } from './auth/accountEmail.js';
 import { runScheduleStatus } from './commands/scheduleStatus.js';
 import { loadDesiredState } from './schedule/desiredStateStore.js';
 import { reconcile } from './schedule/reconcile.js';
@@ -278,9 +279,11 @@ program
     const lang = parseLang(options.lang);
     const snapshot = loadSnapshot(options.eventId, DATA_DIR);
     if (!snapshot) throw new Error(`ローカルスナップショット（${options.eventId}）がありません。先に sync を実行してください`);
-    const result = await runScheduleView(await createClient(), options.eventId, {
+    const client = await createClient(); // トークンの更新もここで済む
+    const result = await runScheduleView(client, options.eventId, {
       snapshot, outPath: options.out, profile: loadProfile(PROFILE_PATH), date: options.date,
       dataDir: DATA_DIR, newSince: options.newSince, lang,
+      account: emailFromAccessToken(getTokenStore().loadRaw()?.accessToken),
     });
     console.log(`保存しました: ${result.path}（予約 ${result.reserved}件 / お気に入り ${result.favorites}件 / 個人予定 ${result.personalTime}件）`);
   });
@@ -504,11 +507,11 @@ notes
 const auth = program.command('auth').description('Builder ID サインインの状態管理');
 auth
   .command('status')
-  .description('サインイン状態を表示する')
+  .description('サインイン状態と、サインイン中のアカウント（メール）を表示する')
   .action(async () => {
     const status = await runAuthStatus(getTokenStore());
     if (status.signedIn) {
-      console.log(`サインイン済み（有効期限: ${status.expiresAt}${status.refreshed ? '、refresh tokenで更新しました' : ''}）`);
+      console.log(`サインイン済み${status.email ? `: ${status.email}` : ''}（有効期限: ${status.expiresAt}${status.refreshed ? '、refresh tokenで更新しました' : ''}）`);
     } else {
       console.log('未サインイン');
     }
@@ -520,7 +523,8 @@ auth
   .action(async () => {
     console.log('ブラウザを開きます。Builder IDでサインインしてください…');
     const token = await signIn(getTokenStore());
-    console.log(`サインインしました（有効期限: ${new Date(token.expiresAt).toISOString()}）`);
+    const email = emailFromAccessToken(token.accessToken);
+    console.log(`サインインしました${email ? `: ${email}` : ''}（有効期限: ${new Date(token.expiresAt).toISOString()}）`);
   });
 
 auth

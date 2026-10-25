@@ -34,8 +34,13 @@ export interface ScheduleHtmlInput {
   newSessionIds?: string[]; // 「新着」として印を付けるセッション（比較元のスナップショットに無かったもの）
   newBaseline?: string; // 新着の比較元スナップショットの日付（表示用）
   lang?: Lang; // 画面の言語。省略時は日本語（カタログ由来のタイトル・概要は翻訳しない）
+  account?: string; // サインイン中のメール。指定するとヘッダーに出す（サンプルでは指定しない）
   digestPeriods?: DigestPeriod[]; // 「更新履歴」タブ。日別スナップショットの隣り合う日どうしの差分（新しい期間が先）。省略時はタブを出さない
 }
+
+// 公式サイトへのリンク（クリックしたときだけ開く。ページの読み込み時に外部へ通信しない）
+const OFFICIAL_CATALOG_URL = 'https://registration.awsevents.com/flow/awsevents/reinvent2026/event-catalog/page/eventCatalog';
+const OFFICIAL_CALENDAR_URL = 'https://aws.amazon.com/jp/events/reinvent/calendar/';
 
 const DIGEST_TAB_MAX_PERIODS = 14; // ファイルを重くしないため、タブに載せるのは直近の期間だけ
 
@@ -411,6 +416,7 @@ details.f[open] summary::after{content:"－"}
 .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .more{display:flex;justify-content:center;margin:16px}
 .note{font-size:12px;color:var(--tx2);margin:2px 0}
+.offlinks a{margin-left:12px;color:var(--ac)}
 .empty{padding:48px;text-align:center;color:var(--tx2)}
 .ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
 .panel{border:1px solid var(--bd);border-radius:10px;padding:16px}
@@ -557,7 +563,8 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
 <div class="stats" id="stats"></div>
 <p class="note" id="newNote"></p>
 <p class="note">${P.timezoneNote}</p>
-<p class="note">${esc(P.created(input.generatedAt.toISOString()))}</p></header>
+<p class="note">${esc(P.created(input.generatedAt.toISOString()))}</p>
+${input.account ? `<p class="note">${esc(P.signedInAs(input.account))}</p>\n` : ''}<p class="note offlinks">${esc(P.officialLinksLabel)} <a href="${OFFICIAL_CATALOG_URL}" target="_blank" rel="noopener noreferrer">${esc(P.linkOfficialCatalog)}</a> <a href="${OFFICIAL_CALENDAR_URL}" target="_blank" rel="noopener noreferrer">${esc(P.linkOfficialCalendar)}</a></p></header>
 <nav class="tabs" role="tablist">
 <button class="tab on" data-v="sched" role="tab">${P.tabSchedule}</button>
 <button class="tab" data-v="list" role="tab">${P.tabList}</button>

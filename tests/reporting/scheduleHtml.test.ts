@@ -20,6 +20,24 @@ describe('buildScheduleHtml', () => {
   const a = session('a', 'AIM101', '2026-11-30', '08:30', '60', 'MGM Grand');
   const b = session('b', 'AIM102', '2026-12-01', '10:00', '60', 'Venetian');
 
+  it('ヘッダーに公式サイトのカタログとカレンダーへのリンクを、新しいタブで開く形で出す（日英）', () => {
+    const base = { schedule: schedule([]), sessions: [a, b], generatedAt: GENERATED_AT };
+    for (const [lang, label] of [['ja', 'イベントカタログ'], ['en', 'Event catalog']] as const) {
+      const out = buildScheduleHtml({ ...base, lang });
+      expect(out).toContain('href="https://registration.awsevents.com/flow/awsevents/reinvent2026/event-catalog/page/eventCatalog" target="_blank" rel="noopener noreferrer">' + label);
+      expect(out).toContain('href="https://aws.amazon.com/jp/events/reinvent/calendar/" target="_blank" rel="noopener noreferrer"');
+    }
+  });
+
+  it('account を指定したときだけ、ヘッダーにサインイン中のメールを（エスケープして）出す', () => {
+    const base = { schedule: schedule([]), sessions: [a, b], generatedAt: GENERATED_AT };
+    expect(buildScheduleHtml(base)).not.toContain('この予定のアカウント');
+
+    expect(buildScheduleHtml({ ...base, account: 'me@example.com' })).toContain('この予定のアカウント: me@example.com');
+    expect(buildScheduleHtml({ ...base, account: 'me@example.com', lang: 'en' })).toContain('Account for this schedule: me@example.com');
+    expect(buildScheduleHtml({ ...base, account: '<b>x</b>@example.com' })).toContain('&lt;b&gt;x&lt;/b&gt;@example.com');
+  });
+
   it('digestPeriods があるときだけ「更新履歴」タブを出し、日英で表示する', () => {
     const periods = [{ from: '2026-10-01', to: '2026-10-02', diff: { added: [b], removed: [], changed: [] } }];
     const base = { schedule: schedule([]), sessions: [a, b], generatedAt: GENERATED_AT };
