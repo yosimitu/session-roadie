@@ -12,10 +12,11 @@ It has no UI that replaces the official app (the idea is that at the venue you o
 
 A sample of the HTML that `re-roadie view` writes. All sessions, reservations, and personal time are fictional, and no official catalog data is included. The travel blocks and warnings come from the real calculation logic.
 
-The Schedule tab (day timeline with travel blocks, lunch-overlap warnings, and a full-session mark), and the Session list tab (recommended order, with scores and reasons).
+The Schedule tab (day timeline with travel blocks, lunch-overlap warnings, and a full-session mark), the Session list tab (recommended order, with scores and reasons), and the Update history tab (new, removed, and changed sessions per period).
 
 [![The Schedule tab of re-roadie view (sample)](docs/sample/schedule-sample.en.png)](docs/sample/schedule-sample.en.png)
 [![The Session list tab of re-roadie view (sample)](docs/sample/schedule-sample-list.en.png)](docs/sample/schedule-sample-list.en.png)
+[![The Update history tab of re-roadie view (sample)](docs/sample/schedule-sample-digest.en.png)](docs/sample/schedule-sample-digest.en.png)
 
 - Interactive sample: [English](docs/sample/schedule-sample.en.html) / [日本語](docs/sample/schedule-sample.html) (download and open in a browser; about 85 KB each, no network access)
 - The English page comes from `re-roadie view --lang en`.

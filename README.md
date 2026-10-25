@@ -12,13 +12,14 @@ re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API]
 
 `re-roadie view` が出力するHTMLのサンプルです。セッション・予約・個人予定はすべて架空で、公式カタログのデータは含みません。移動ブロックと警告は、実際の計算ロジックで出しています。
 
-「予定」タブ（日別タイムライン。移動ブロック、昼にかかる警告、満席の印）と、「セッション一覧」タブ（おすすめ順。点数と理由つき）です。
+「予定」タブ（日別タイムライン。移動ブロック、昼にかかる警告、満席の印）、「セッション一覧」タブ（おすすめ順。点数と理由つき）、「更新履歴」タブ（期間ごとの新規・削除・変更）です。
 
 [![re-roadie view の「予定」タブ（サンプル）](docs/sample/schedule-sample.png)](docs/sample/schedule-sample.png)
 [![re-roadie view の「セッション一覧」タブ（サンプル）](docs/sample/schedule-sample-list.png)](docs/sample/schedule-sample-list.png)
+[![re-roadie view の「更新履歴」タブ（サンプル）](docs/sample/schedule-sample-digest.png)](docs/sample/schedule-sample-digest.png)
 
 - 操作できるサンプル: [日本語](docs/sample/schedule-sample.html) / [English](docs/sample/schedule-sample.en.html)（ダウンロードしてブラウザで開く。各約85KB、外部通信なし）
-- 英語版の画面: `re-roadie view --lang en`。英語版のスクリーンショットは [予定](docs/sample/schedule-sample.en.png) / [セッション一覧](docs/sample/schedule-sample-list.en.png)
+- 英語版の画面: `re-roadie view --lang en`。英語版のスクリーンショットは [予定](docs/sample/schedule-sample.en.png) / [セッション一覧](docs/sample/schedule-sample-list.en.png) / [更新履歴](docs/sample/schedule-sample-digest.en.png)
 - 作り直すとき: `npx tsx scripts/generate-sample-html.ts`（日英の両方を作る）
 
 > **注意**: 本ツールは個人が開発した非公式のツールで、AWS・Amazon が提供・承認したものではありません。AWS Events API の公式ドキュメントに基づいて動作しますが、利用は自己責任でお願いします。予約・お気に入り・個人予定を実際に書き換えるため、実行前に必ず差分を確認してください。
