@@ -6,6 +6,7 @@ import type { PersonalTime, Schedule, SeatAvailability, Session } from '../src/a
 import { computeTravelBlock } from '../src/schedule/travelBlock.js';
 import { buildScheduleHtml } from '../src/reporting/scheduleHtml.js';
 import type { Lang } from '../src/reporting/i18n.js';
+import type { DigestPeriod } from '../src/reporting/digestHtml.js';
 
 const OUT_PATHS = { ja: 'docs/sample/schedule-sample.html', en: 'docs/sample/schedule-sample.en.html' } as const;
 
@@ -105,6 +106,16 @@ const schedule: Schedule = { reserved: reservedIds, favorites: FAVORITE_NUMBERS.
 const withTitles = (lang: Lang): Schedule =>
   lang === 'ja' ? schedule : { ...schedule, personalTime: personalTime.map((p) => ({ ...p, title: p.title.replace(/ 移動$/, ' travel') })) };
 
+// 「更新履歴」タブに出す、架空の日別の差分（新しい期間が先）。実データではない
+const retired = toSession({ n: 401, title: 'Sample: Retired session that left the catalog', type: 'Chalk talk', level: '200 - Intermediate', venue: 'Wynn', room: 'Level 1 | Latour', date: '2026-12-02', time: '10:00', length: 60, seat: 'available', topics: ['Data'] });
+const movedAfter = byId.get(id(105))!;
+const movedBefore: Session = { ...movedAfter, room: 'Level 1 | Room 102', sessionTime: { ...movedAfter.sessionTime!, time: '14:30' } };
+const digestPeriods: DigestPeriod[] = [
+  { from: '2026-11-17', to: '2026-11-20', diff: { added: [byId.get(id(304))!], removed: [retired], changed: [{ sessionId: id(105), before: movedBefore, after: movedAfter, changedFields: ['room', 'sessionTime'] }] } },
+  { from: '2026-11-16', to: '2026-11-17', diff: { added: [byId.get(id(206))!], removed: [], changed: [] } },
+  { from: '2026-11-13', to: '2026-11-16', diff: { added: [], removed: [], changed: [] } },
+];
+
 function build(lang: Lang): string {
   return buildScheduleHtml({
     schedule: withTitles(lang),
@@ -122,6 +133,7 @@ function build(lang: Lang): string {
     generatedAt: new Date('2026-11-20T00:00:00Z'),
     newSessionIds: NEW_NUMBERS.map(id),
     newBaseline: '2026-11-13',
+    digestPeriods,
     lang,
   });
 }

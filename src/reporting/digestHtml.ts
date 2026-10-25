@@ -18,7 +18,7 @@ type DigestLang = 'ja' | 'en';
 const L = {
   ja: {
     added: '新規', removed: '削除', changed: '変更（会場・部屋・日時）', changedShort: '変更', unit: '件', none: '変化なし',
-    noType: '（形式なし）', noValue: '（なし）', period: '期間',
+    noType: '（形式なし）', noValue: '（なし）', period: '期間', sep: '、',
     merged: (n: number) => `${n}日分をまとめた差分（間のスナップショットなし）`,
     empty: '比べられる日別スナップショットが2日分ありません。<code>re-roadie sync</code> か <code>watch</code> を日をあけて実行すると記録されます。',
     field: { venue: '会場', room: '部屋', sessionTime: '日時' } as Record<string, string>,
@@ -28,7 +28,7 @@ const L = {
   },
   en: {
     added: 'New', removed: 'Removed', changed: 'Changed (venue, room, time)', changedShort: 'Changed', unit: '', none: 'No changes',
-    noType: '(no type)', noValue: '(none)', period: 'Period',
+    noType: '(no type)', noValue: '(none)', period: 'Period', sep: ', ',
     merged: (n: number) => `Combined diff over ${n} days (no snapshot in between)`,
     empty: 'Fewer than two daily snapshots are saved. Run <code>re-roadie sync</code> or <code>watch</code> on different days to record them.',
     field: { venue: 'Venue', room: 'Room', sessionTime: 'Time' } as Record<string, string>,
@@ -70,8 +70,8 @@ function when(s: Session): string {
   return [day, t?.time].filter(Boolean).join(' ');
 }
 
-function sessionLine(s: Session): string {
-  const meta = [when(s), s.venue, s.room].filter(Boolean).join('、');
+function sessionLine(s: Session, sep: string): string {
+  const meta = [when(s), s.venue, s.room].filter(Boolean).join(sep);
   return `<li><b>${esc(s.abbreviation ?? s.sessionId)}</b> ${esc(s.title)}${meta ? ` <span class="meta">${esc(meta)}</span>` : ''}</li>`;
 }
 
@@ -108,8 +108,8 @@ function renderPeriod(p: DigestPeriod, first: boolean, t: (typeof L)[DigestLang]
   const body = empty
     ? `<p class="none">${t.none}</p>`
     : section(t.added, added.length, groupByType(added, t.noType).map(([type, list]) =>
-        `<h4>${esc(type)} (${list.length})</h4><ul>${list.map(sessionLine).join('')}</ul>`).join(''), t.unit, first)
-      + section(t.removed, removed.length, `<ul>${removed.map(sessionLine).join('')}</ul>`, t.unit)
+        `<h4>${esc(type)} (${list.length})</h4><ul>${list.map((s) => sessionLine(s, t.sep)).join('')}</ul>`).join(''), t.unit, first)
+      + section(t.removed, removed.length, `<ul>${removed.map((s) => sessionLine(s, t.sep)).join('')}</ul>`, t.unit)
       + section(t.changed, changed.length, `<ul>${changed.map((c) => changedLine(c, t)).join('')}</ul>`, t.unit);
   return `<section id="d-${esc(p.to)}"><h2>${esc(p.from)} → ${esc(p.to)} ${note}</h2><div class="chips">${counts}</div>${body}</section>`;
 }
