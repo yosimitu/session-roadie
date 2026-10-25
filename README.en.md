@@ -329,7 +329,7 @@ Register it with `launchctl load ~/Library/LaunchAgents/com.example.session-road
 
 #### Windows (Task Scheduler)
 
-In PowerShell, adjust the repository root path to your environment and run the following. It has not been verified on a real Windows machine.
+In PowerShell, adjust the repository root path to your environment and run the following.
 
 ```powershell
 $root = 'C:\path\to\session-roadie'
@@ -341,7 +341,7 @@ Register-ScheduledTask -TaskName 'session-roadie-watch' -Action $action -Trigger
 ```
 
 - `-StartWhenAvailable` runs the task after the PC wakes if it was not running at 9:00.
-- To get notifications too, change `-Argument` to `'dist\cli.js watch --notify'`. The notification is a toast from `powershell.exe` (Windows PowerShell 5.1). It has not been verified on a real Windows machine.
+- To get notifications too, change `-Argument` to `'dist\cli.js watch --notify'`. The notification is a toast from `powershell.exe` (Windows PowerShell 5.1).
 - If nothing appears, check that Windows Focus Assist and the Notifications setting are not turning it off. A failed notification does not stop `watch`; it prints "通知に失敗しました".
 - Without notifications, check new sessions and changes by opening `data/digest.html` or running `node dist/cli.js watch` by hand.
 

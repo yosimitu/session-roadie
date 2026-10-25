@@ -348,7 +348,7 @@ OS によって、通知と毎日の自動実行の方法が違います。
 
 #### Windows（タスク スケジューラ）
 
-PowerShell で、リポジトリのルートのパスを自分の環境に合わせて実行します。Windows 実機では動作を確認していません。
+PowerShell で、リポジトリのルートのパスを自分の環境に合わせて実行します。
 
 ```powershell
 $root = 'C:\path\to\session-roadie'
@@ -360,7 +360,7 @@ Register-ScheduledTask -TaskName 'session-roadie-watch' -Action $action -Trigger
 ```
 
 - `-StartWhenAvailable` で、9:00 に PC が起きていなかったときも、起きたあとに実行します。
-- 通知も出すときは、`-Argument` を `'dist\cli.js watch --notify'` にします。通知は `powershell.exe`（Windows PowerShell 5.1）のトースト通知です。Windows 実機では動作を確認していません。
+- 通知も出すときは、`-Argument` を `'dist\cli.js watch --notify'` にします。通知は `powershell.exe`（Windows PowerShell 5.1）のトースト通知です。
 - 通知が出ないときは、Windows の「集中モード」と、設定の「通知」でオフになっていないかを確認します。通知に失敗しても `watch` は止まらず、「通知に失敗しました」と出力します。
 - 通知を使わない場合は、`data/digest.html` を開くか、`node dist/cli.js watch` を手で実行して確認します。
 
