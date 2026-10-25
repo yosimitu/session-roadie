@@ -6,7 +6,7 @@
 
 re:Invent 参加者の意図とプロフィールをもとに、[AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) でセッションの計画・予約・移動時間確保・変更追従を行い、結果を**公式アプリの個人スケジュールに書き戻す**ローカルCLIエージェントです。
 
-公式アプリの代わりになるUIは持ちません（会場では公式アプリを見るだけで済むようにする、という発想です）。手元のPCで予定を俯瞰するための、参照専用のローカルHTML（`re-roadie view`）だけを出力できます（設計と実機確認の記録は [docs/design.md](docs/design.md) を参照）。
+公式アプリの代わりになるUIは持ちません（会場では公式アプリを見るだけで済むようにする、という発想です）。手元のPCで予定を俯瞰するための、参照専用のローカルHTML（`re-roadie view`）だけを出力できます（設計の説明は [docs/design.md](docs/design.md) を参照）。
 
 ### 画面サンプル
 

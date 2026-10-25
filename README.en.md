@@ -6,7 +6,7 @@ English | [日本語](README.md)
 
 Based on an attendee's intent and profile, re:Roadie uses the [AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) to plan sessions, reserve seats, block travel time, and follow catalog changes, then **writes the result back to your personal schedule in the official app**. It is a local CLI agent.
 
-It has no UI that replaces the official app (the idea is that at the venue you only need to look at the official app). It can only produce a read-only local HTML page (`re-roadie view`) for reviewing your schedule on a PC. See [docs/design.md](docs/design.md) (in Japanese) for the design and the record of tests against the real API.
+It has no UI that replaces the official app (the idea is that at the venue you only need to look at the official app). It can only produce a read-only local HTML page (`re-roadie view`) for reviewing your schedule on a PC. See [docs/design.md](docs/design.md) (in Japanese) for the design.
 
 ### Screen sample
 
