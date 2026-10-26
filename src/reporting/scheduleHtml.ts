@@ -5,6 +5,7 @@ import { planTravelBlocks } from '../commands/travelBlocks.js';
 import { lunchOverlapWarnings } from '../planning/optimize.js';
 import { recommendSessions, RECOMMEND_THRESHOLD } from '../planning/recommend.js';
 import { normalizeVenue } from '../schedule/travelTime.js';
+import { computeDayLoads, type DayLoad } from '../schedule/dayLoad.js';
 import { NOTE_REMINDER_TITLE_PREFIX } from '../schedule/noteReminder.js';
 import { TRAVEL_BLOCK_DESCRIPTION_MARKER } from '../schedule/travelBlock.js';
 import { buildCatalogRecords, serializeForScript } from './catalogRecords.js';
@@ -113,7 +114,7 @@ function sessionDetail(s: Session): string {
   ].filter(Boolean).join('\n');
 }
 
-function buildItems(input: ScheduleHtmlInput, P: PageStrings): { items: Item[]; missing: string[] } {
+function buildItems(input: ScheduleHtmlInput, P: PageStrings): { items: Item[]; missing: string[]; reservedSessions: Session[] } {
   const { schedule, sessions, profile } = input;
   const byId = new Map(sessions.map((s) => [s.sessionId, s]));
   const missing: string[] = [];
@@ -191,7 +192,7 @@ function buildItems(input: ScheduleHtmlInput, P: PageStrings): { items: Item[]; 
     for (const w of lunchOverlapWarnings(reservedSessions)) itemFor.get(w.sessionId)?.tags.push({ cls: 'warn', text: P.lunchTag });
   }
 
-  return { items, missing };
+  return { items, missing, reservedSessions };
 }
 
 interface Placed {
@@ -308,29 +309,35 @@ function renderGrid(date: string, items: Item[], range: Range, P: PageStrings, w
     + `<div class="t-memo" data-date="${esc(date)}" data-start="${range.start}"></div></div>`;
 }
 
-function daySummary(items: Item[], P: PageStrings): string {
+function daySummary(items: Item[], P: PageStrings, loadText?: string): string {
   const reservedCount = items.filter((i) => i.kind === 'reserved').length;
   const warnCount = items.reduce((n, i) => n + i.tags.filter((t) => t.cls === 'warn').length, 0);
-  return P.daySummary(reservedCount, warnCount);
+  return P.daySummary(reservedCount, warnCount, loadText);
 }
 
-function renderDay(date: string, items: Item[], today: string, P: PageStrings): string {
+/** 予約のある日だけ、セッションの合計時間と会場移動の概算を出す */
+function dayLoadText(load: DayLoad | undefined, P: PageStrings): string | undefined {
+  return load && load.sessions > 0 ? P.dayLoad(load.sessionMinutes, load.moves, load.travelMinutes) : undefined;
+}
+
+function renderDay(date: string, items: Item[], today: string, P: PageStrings, load?: DayLoad): string {
   const badge = date === today ? `<span class="today">${P.today}</span>` : '';
-  return `<section class="t-day" id="day-${esc(date)}"><h3>${esc(date)} ${badge}<small>${daySummary(items, P)}</small></h3>`
+  return `<section class="t-day" id="day-${esc(date)}"><h3>${esc(date)} ${badge}<small>${daySummary(items, P, dayLoadText(load, P))}</small></h3>`
     + `${renderGrid(date, items, rangeOf(items), P)}</section>`;
 }
 
 /** 全日を横に並べる。日をまたいで時刻が揃うよう、時間軸は全日で共通にする */
-function renderWeek(dates: string[], byDate: Map<string, Item[]>, today: string, P: PageStrings): string {
+function renderWeek(dates: string[], byDate: Map<string, Item[]>, today: string, P: PageStrings, loads: Map<string, DayLoad>): string {
   const range = rangeOf(dates.flatMap((d) => byDate.get(d) ?? []));
   const cols = dates.map((d) => {
     const items = byDate.get(d) ?? [];
     const badge = d === today ? `<span class="today">${P.today}</span>` : '';
+    const load = dayLoadText(loads.get(d), P) ?? '';
     return `<div class="w-col" id="w-${esc(d)}"><h4>${esc(weekdayLabel(d, P))} ${badge}<small>${daySummary(items, P)}</small></h4>`
-      + `${renderGrid(d, items, range, P, false)}</div>`;
+      + `<div class="w-sub" title="${esc(load)}">${esc(load)}</div>${renderGrid(d, items, range, P, false)}</div>`;
   });
-  // 時間スケールは日ごとに重ねず、左端に1本だけ置く（横にスクロールしても残る）
-  const axis = `<div class="w-axis"><h4>&nbsp;</h4><div class="t-axis" style="height:${((range.end - range.start) * PX_PER_MINUTE).toFixed(1)}px">${hourLines(range, true)}</div></div>`;
+  // 時間スケールは日ごとに重ねず、左端に1本だけ置く（横にスクロールしても残る）。日ごとの負荷の行と同じ高さの空きを置いて揃える
+  const axis = `<div class="w-axis"><h4>&nbsp;</h4><div class="w-sub"></div><div class="t-axis" style="height:${((range.end - range.start) * PX_PER_MINUTE).toFixed(1)}px">${hourLines(range, true)}</div></div>`;
   return `<div class="w-wrap" style="grid-template-columns:44px repeat(${dates.length},minmax(270px,1fr))">${axis}${cols.join('')}</div>`;
 }
 
@@ -494,6 +501,7 @@ details.f[open] summary::after{content:"－"}
 .t-axis{position:relative;border-top:1px solid var(--bd)}
 .t-axis .t-hour{border-top:0}
 .t-axis .t-hour span{font-size:10px}
+.w-sub{height:16px;margin:-2px 0 4px;font-size:11px;color:var(--tx2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .w-col h4{font-size:14px;position:sticky;left:0}
 .w-col h4 small{margin-left:8px;color:var(--tx2);font-weight:400;font-size:11px}
 .w-col .t-lane{left:0}
@@ -505,7 +513,8 @@ details.f[open] summary::after{content:"－"}
 export function buildScheduleHtml(input: ScheduleHtmlInput): string {
   const lang = input.lang ?? 'ja';
   const P = PAGE[lang];
-  const { items: allItems, missing } = buildItems(input, P);
+  const { items: allItems, missing, reservedSessions } = buildItems(input, P);
+  const loads = computeDayLoads(reservedSessions);
   const only = input.options?.date;
   const items = only ? allItems.filter((i) => i.date === only) : allItems;
   const today = new Date(input.generatedAt.getTime() - VENUE_UTC_OFFSET_MS).toISOString().slice(0, 10);
@@ -523,9 +532,9 @@ export function buildScheduleHtml(input: ScheduleHtmlInput): string {
     .map((d) => `<a href="#day-${esc(d)}"${d === today ? ' class="is-today"' : ''}>${esc(d.slice(5))}</a>`)
     .join('');
   const days = dates.length > 0
-    ? dates.map((d) => renderDay(d, byDate.get(d) ?? [], today, P)).join('')
+    ? dates.map((d) => renderDay(d, byDate.get(d) ?? [], today, P, loads.get(d))).join('')
     : `<div class="empty">${P.noSchedule}</div>`;
-  const week = dates.length > 0 ? renderWeek(dates, byDate, today, P) : '';
+  const week = dates.length > 0 ? renderWeek(dates, byDate, today, P, loads) : '';
   const missingBlock = missing.length > 0
     ? `<div class="missing">${P.missing(missing.map(esc).join(', '))}</div>`
     : '';

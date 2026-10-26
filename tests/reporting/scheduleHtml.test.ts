@@ -404,4 +404,28 @@ describe('buildScheduleHtml: lang', () => {
     expect(out).toContain('Mon');
     expect(out).toContain('Lunch');
   });
+
+  it('日ごとに、予約したセッションの合計時間と会場移動の概算を、日別と5日間通しの両方に出す', () => {
+    const v = session('v', 'AIM201', '2026-12-02', '10:00', '60', 'Venetian');
+    const w = session('w', 'AIM202', '2026-12-02', '11:30', '90', 'Wynn/Encore');
+    const out = html(schedule(['v', 'w']), [v, w]);
+    expect(out).toContain('セッション計 2時間30分 / 会場移動 1回（約15分）');
+    expect(out).toMatch(/<div class="w-sub" title="セッション計 2時間30分 \/ 会場移動 1回（約15分）">/);
+  });
+
+  it('同じ会場だけの日は「会場移動なし」、予約の無い日には負荷を出さない', () => {
+    const v = session('v', 'AIM201', '2026-12-02', '10:00', '60', 'Venetian');
+    const w = session('w', 'AIM202', '2026-12-02', '11:30', '45', 'Venetian');
+    const out = html(schedule(['v', 'w'], ['b']), [v, w, b]);
+    expect(out).toContain('セッション計 1時間45分 / 会場移動なし');
+    const favoriteOnlyDay = /id="day-2026-12-01">[\s\S]*?<\/h3>/.exec(out)![0];
+    expect(favoriteOnlyDay).not.toContain('セッション計');
+  });
+
+  it('en では負荷の表示も英語になる', () => {
+    const v = session('v', 'AIM201', '2026-12-02', '10:00', '60', 'Venetian');
+    const w = session('w', 'AIM202', '2026-12-02', '11:30', '60', 'Wynn/Encore');
+    const out = buildScheduleHtml({ schedule: schedule(['v', 'w']), sessions: [v, w], generatedAt: GENERATED_AT, lang: 'en' });
+    expect(out).toContain('Sessions 2h total / 1 venue change (~15 min)');
+  });
 });

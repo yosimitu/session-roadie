@@ -17,6 +17,8 @@ import {
   schedulePlanTool,
   scheduleApplyTool,
   scheduleViewTool,
+  scheduleIcsTool,
+  dayBriefTool,
   conflictsGetTool,
   travelBlocksPlanTool,
   travelBlocksApplyTool,
@@ -194,6 +196,22 @@ export function createServer(): McpServer {
       lang: z.enum(['ja', 'en']).optional().describe('画面の言語。省略時は ja。カタログ由来のタイトル・概要は翻訳しない'),
     },
   }, async ({ date, eventId, newSince, lang }) => safely(() => scheduleViewTool(date, eventId, newSince, lang)));
+
+  server.registerTool('schedule_ics', {
+    description: '予約したセッションを、カレンダーアプリ（Google カレンダー・Outlook・Apple カレンダーなど）に取り込める .ics（data/schedule.ics）に書き出す。参照専用で、公式の予定は変更しない。時刻は UTC で書くので、取り込んだアプリが手元のタイムゾーンで表示する。説明欄に現地時刻（PST）を入れる。セッションごとに決まった UID を付けるので、取り込み直しても重複せず更新される（あとで取り消した予約は、取り込み済みのカレンダーから自動では消えない）。個人予定は含めない。個人の予定が入るファイルなので、他の人に渡すときは注意する',
+    inputSchema: {
+      ...eventIdParam,
+      favorites: z.boolean().optional().describe('true にすると、未予約のお気に入りも仮の予定（☆つき）として含める。省略時は予約だけ'),
+    },
+  }, async ({ eventId, favorites }) => safely(() => scheduleIcsTool(favorites, eventId)));
+
+  server.registerTool('day_brief', {
+    description: '1日分の予約の要約を返す。sessions は時刻順の予約、moves は連続する予約の間の会場移動（移動時間は概算。開始の10分前までに着くために必要な時間 neededMinutes と空き availableMinutes を比べて、間に合うかを sufficient で示す）、load は合計時間と会場移動の回数・移動時間、overlaps は時間が重なる予約。lines は表示用の文面。date（会場の現地の日付）を省略すると、会場現地の今日以降で予約のある最初の日を使い、isToday で今日かどうかを示す。今日以降に予約が無いときは found: false。公式の予定は変更しない',
+    inputSchema: {
+      ...eventIdParam,
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('会場現地（PST）の日付 YYYY-MM-DD。省略時は、今日以降で予約のある最初の日'),
+    },
+  }, async ({ eventId, date }) => safely(() => dayBriefTool(date, eventId)));
 
   server.registerTool('conflicts_get', {
     description: '予約済みセッションの時間重複を検出し、再演・類似セッションの有無という事実に基づく根拠つきで諦める優先順位を提案する（sessionConflicts）。個人予定（基調講演など）と重なる予約も返す（personalTimeConflicts）',

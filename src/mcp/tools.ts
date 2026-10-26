@@ -22,8 +22,10 @@ import { searchCatalog, type CatalogQuery } from '../catalog/search.js';
 import { loadProfile } from '../profile/profileStore.js';
 import { loadIntent } from '../profile/intentStore.js';
 import { signIn, signOut } from '../auth/signIn.js';
-import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, SCHEDULE_HTML_PATH, getTokenStore, createClient } from '../runtimeContext.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, INTENT_PATH, SCHEDULE_HTML_PATH, SCHEDULE_ICS_PATH, getTokenStore, createClient } from '../runtimeContext.js';
 import { runScheduleView } from '../commands/scheduleView.js';
+import { runScheduleIcs } from '../commands/scheduleIcs.js';
+import { formatBrief, runBrief } from '../commands/brief.js';
 import { parseLang } from '../reporting/i18n.js';
 import type { Session } from '../api/types.js';
 import { runWatchOnce } from '../commands/watch.js';
@@ -165,6 +167,28 @@ export async function scheduleViewTool(date?: string, eventId?: string, newSince
     snapshot, outPath: SCHEDULE_HTML_PATH, profile: loadProfile(PROFILE_PATH), date, dataDir: DATA_DIR, newSince, lang: parseLang(lang),
     account: emailFromAccessToken(getTokenStore().loadRaw()?.accessToken),
   });
+}
+
+/**
+ * 予約したセッションを、カレンダーアプリに取り込める .ics（data/schedule.ics）に書き出す。公式の予定は変更しない。
+ * 出力先は固定（LLMが任意のパスへ書き込めないようにする）。favorites を true にすると、未予約のお気に入りも仮の予定として含める。
+ */
+export async function scheduleIcsTool(favorites?: boolean, eventId?: string) {
+  const id = resolveEventId(eventId);
+  const snapshot = requireSnapshot(id);
+  return runScheduleIcs(await createClient(), id, { snapshot, outPath: SCHEDULE_ICS_PATH, favorites });
+}
+
+/**
+ * 1日分の予約の要約（時刻順の予約、会場間の移動と空き時間、合計時間、警告）。date は会場の日付 "YYYY-MM-DD"。
+ * 省略時は、会場現地の今日以降で予約のある最初の日。予定は変更しない。
+ */
+export async function dayBriefTool(date?: string, eventId?: string) {
+  if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`date は YYYY-MM-DD の形で指定してください: "${date}"`);
+  const id = resolveEventId(eventId);
+  const result = await runBrief(await createClient(), id, requireSnapshot(id), { date });
+  if (!result) return { found: false, lines: ['今日以降の予約はありません'] };
+  return { found: true, ...result, lines: formatBrief(result) };
 }
 
 export async function conflictsGetTool(eventId?: string) {

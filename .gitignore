@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/*.json
 data/*.html
+data/*.ics
 data/profile.yaml
 data/intent.txt
 data/notes.yaml

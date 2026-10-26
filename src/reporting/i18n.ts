@@ -306,7 +306,9 @@ export interface PageStrings {
   bands: { breakfast: string; lunch: string; night: string };
   weekdays: string[];
   weekdayLabel: (monthDay: string, weekday: string) => string;
-  daySummary: (reserved: number, warnings: number) => string;
+  daySummary: (reserved: number, warnings: number, load?: string) => string;
+  /** 1日の負荷（予約したセッションの合計時間と、会場間の移動の概算） */
+  dayLoad: (sessionMinutes: number, moves: number, travelMinutes: number) => string;
 }
 
 const PAGE_JA: PageStrings = {
@@ -357,7 +359,13 @@ const PAGE_JA: PageStrings = {
   bands: { breakfast: '朝食', lunch: 'ランチ', night: '18時以降' },
   weekdays: ['日', '月', '火', '水', '木', '金', '土'],
   weekdayLabel: (monthDay, weekday) => `${monthDay}(${weekday})`,
-  daySummary: (r, w) => `予約 ${r}件${w > 0 ? ` / <span class="warn-text">警告 ${w}件</span>` : ''}`,
+  daySummary: (r, w, load) => `予約 ${r}件${load ? ` / ${load}` : ''}${w > 0 ? ` / <span class="warn-text">警告 ${w}件</span>` : ''}`,
+  dayLoad: (sessionMinutes, moves, travelMinutes) => {
+    const h = Math.floor(sessionMinutes / 60);
+    const m = sessionMinutes % 60;
+    const total = h > 0 ? `${h}時間${m > 0 ? `${m}分` : ''}` : `${m}分`;
+    return `セッション計 ${total} / ${moves > 0 ? `会場移動 ${moves}回（約${travelMinutes}分）` : '会場移動なし'}`;
+  },
 };
 
 const PAGE_EN: PageStrings = {
@@ -408,7 +416,13 @@ const PAGE_EN: PageStrings = {
   bands: { breakfast: 'Breakfast', lunch: 'Lunch', night: 'After 18:00' },
   weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   weekdayLabel: (monthDay, weekday) => `${monthDay} (${weekday})`,
-  daySummary: (r, w) => `Reserved ${r}${w > 0 ? ` / <span class="warn-text">Warnings ${w}</span>` : ''}`,
+  daySummary: (r, w, load) => `Reserved ${r}${load ? ` / ${load}` : ''}${w > 0 ? ` / <span class="warn-text">Warnings ${w}</span>` : ''}`,
+  dayLoad: (sessionMinutes, moves, travelMinutes) => {
+    const h = Math.floor(sessionMinutes / 60);
+    const m = sessionMinutes % 60;
+    const total = h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+    return `Sessions ${total} total / ${moves > 0 ? `${moves} venue change${moves > 1 ? 's' : ''} (~${travelMinutes} min)` : 'no venue changes'}`;
+  },
 };
 
 export const PAGE: Record<Lang, PageStrings> = { ja: PAGE_JA, en: PAGE_EN };

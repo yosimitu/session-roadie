@@ -29,8 +29,10 @@ import { recommendForConflict } from './planning/alternatives.js';
 import { hasPlanChanges, saveScheduleBackup } from './schedule/backup.js';
 import { runTrends, formatTrends } from './commands/trendsReport.js';
 import { runNowGo, runSeatForecast, runDetour, formatNowGo, formatForecast, formatDetours, parseVenueLocalTime } from './commands/insights.js';
-import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, DIGEST_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
+import { DEFAULT_EVENT_ID, DATA_DIR, NOTES_PATH, PROFILE_PATH, SCHEDULE_HTML_PATH, SCHEDULE_ICS_PATH, DIGEST_HTML_PATH, getTokenStore, createClient } from './runtimeContext.js';
 import { runScheduleView } from './commands/scheduleView.js';
+import { runScheduleIcs } from './commands/scheduleIcs.js';
+import { formatBrief, resolveBrief, runBrief, summarizeBriefForNotification, venueToday } from './commands/brief.js';
 import { describe } from './helpText.js';
 import { generateDigestFile } from './reporting/digestHtml.js';
 import { parseLang } from './reporting/i18n.js';
@@ -289,6 +291,41 @@ program
   });
 
 program
+  .command('ics')
+  .summary('予約したセッションを、カレンダーアプリに取り込める .ics に書き出す（参照専用）')
+  .description(describe('予約したセッションを、カレンダーアプリに取り込める .ics に書き出す（参照専用）', 'ics'))
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('--favorites', '予約していないお気に入りも、仮の予定として含める', false)
+  .addOption(new Option('-o, --out <file>', '出力先').default(SCHEDULE_ICS_PATH, 'data/schedule.ics'))
+  .action(async (options: { eventId: string; favorites: boolean; out: string }) => {
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR);
+    if (!snapshot) throw new Error(`ローカルスナップショット（${options.eventId}）がありません。先に sync を実行してください`);
+    const result = await runScheduleIcs(await createClient(), options.eventId, { snapshot, outPath: options.out, favorites: options.favorites });
+    console.log(`保存しました: ${result.path}（${result.events}件）`);
+    if (result.skipped.length > 0) console.log(`スナップショットに無い、または日時が読めないため出せなかったもの: ${result.skipped.join(', ')}`);
+  });
+
+program
+  .command('brief')
+  .summary('予約のある日の予定・会場移動・警告を、朝に見られる形で出す（参照専用）')
+  .description(describe('予約のある日の予定・会場移動・警告を、朝に見られる形で出す（参照専用）', 'brief'))
+  .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
+  .option('-d, --date <date>', '会場現地（PST）の日付（YYYY-MM-DD）。省略時は、今日以降で予約のある最初の日')
+  .action(async (options: { eventId: string; date?: string }) => {
+    if (options.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(options.date)) {
+      throw new Error(`--date は YYYY-MM-DD の形で指定してください: "${options.date}"`);
+    }
+    const snapshot = loadSnapshot(options.eventId, DATA_DIR);
+    if (!snapshot) throw new Error(`ローカルスナップショット（${options.eventId}）がありません。先に sync を実行してください`);
+    const result = await runBrief(await createClient(), options.eventId, snapshot, { date: options.date });
+    if (!result) {
+      console.log('今日以降の予約はありません');
+      return;
+    }
+    for (const line of formatBrief(result)) console.log(line);
+  });
+
+program
   .command('digest')
   .summary('日別スナップショットを比べ、カタログの更新履歴（新規・削除・変更）をHTMLに書き出す')
   .description(describe('日別スナップショットを比べ、カタログの更新履歴（新規・削除・変更）をHTMLに書き出す', 'digest'))
@@ -542,7 +579,8 @@ program
   .option('-e, --event-id <eventId>', 'イベントID', DEFAULT_EVENT_ID)
   .option('--interval <minutes>', '指定した分ごとに繰り返す（5分以上の整数）。省略時は1回だけ確認して終了する')
   .option('--notify', 'デスクトップ通知も出す（macOS と Windows。それ以外ではコンソール表示のみ）', false)
-  .action(async (options: { eventId: string; interval?: string; notify: boolean }) => {
+  .option('--brief', '会場現地の今日に予約があれば、その日の予定の要約も出す（--notify と併用すると通知する）', false)
+  .action(async (options: { eventId: string; interval?: string; notify: boolean; brief: boolean }) => {
     const intervalMinutes = options.interval === undefined ? undefined : parseIntervalMinutes(options.interval);
     if (options.notify && process.platform !== 'darwin' && process.platform !== 'win32') {
       console.warn('警告: --notify は macOS と Windows のみ対応です。コンソール表示のみにします。');
@@ -556,6 +594,7 @@ program
       }
     };
 
+    let briefedDate = ''; // 今日の予定を出した日（--interval で繰り返しても、同じ日に何度も出さない）
     const tick = async (): Promise<void> => {
       const client = await createClient(); // 毎回呼ぶ（アクセストークンの自動更新のため）
       const result = await runWatchOnce(client, options.eventId, DATA_DIR, loadProfile(PROFILE_PATH));
@@ -573,6 +612,23 @@ program
       }
       const newSummary = summarizeNewSessions(result);
       if (options.notify && newSummary) await notify('re:Roadie: カタログの新着', newSummary);
+      if (options.brief) {
+        try {
+          const now = new Date();
+          const today = venueToday(now);
+          const snapshot = loadSnapshot(options.eventId, DATA_DIR);
+          if (today !== briefedDate && snapshot) {
+            const resolved = resolveBrief(await runScheduleStatus(client, options.eventId), snapshot, { date: today, now });
+            if (resolved?.brief) {
+              briefedDate = today;
+              for (const line of formatBrief(resolved)) console.log(line);
+              if (options.notify) await notify('re:Roadie: 今日の予定', summarizeBriefForNotification(resolved.brief));
+            }
+          }
+        } catch (err) {
+          console.error(`今日の予定の取得に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
     };
 
     if (intervalMinutes === undefined) {
