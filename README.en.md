@@ -2,6 +2,8 @@
 
 English | [日本語](README.md)
 
+![re:Roadie: Your backstage crew for re:Invent.](docs/re-roadie-banner.png)
+
 **A backstage agent that keeps the official app in order for you. All you do is open the official app.**
 
 Based on an attendee's intent and profile, re:Roadie uses the [AWS Events API](https://docs.aws.amazon.com/events/latest/devguide/what-is-events-api.html) to plan sessions, reserve seats, block travel time, and follow catalog changes, then **writes the result back to your personal schedule in the official app**. It is a local CLI agent.
